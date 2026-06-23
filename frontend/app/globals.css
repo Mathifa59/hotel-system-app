@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+@theme {
+  /* Paleta — "Apu Gestión": tinta nocturna + latón */
+  --color-ink: #14110d;
+  --color-ink-soft: #1c1814;
+  --color-surface: #221d17;
+  --color-surface-raised: #2b241c;
+  --color-border-warm: #3a3127;
+
+  --color-brass: #c9a35f;
+  --color-brass-bright: #e3c486;
+  --color-parchment: #f3ede1;
+  --color-parchment-dim: #b8ad9c;
+
+  /* Estados de cuarto — colores con propósito, cada uno distinguible a simple vista */
+  --color-room-available: #4ade80;
+  --color-room-occupied: #6e9bf4;
+  --color-room-cleaning: #f0a93e;
+  --color-room-clean: #36d6c4;
+  --color-room-maintenance: #ec5b4f;
+  --color-room-dnd: #b18af0;
+
+  --font-display: "Fraunces", serif;
+  --font-ui: "Archivo", sans-serif;
+  --font-data: "IBM Plex Mono", monospace;
+}
+
+@layer base {
+  body {
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(201, 163, 95, 0.12), transparent),
+      repeating-linear-gradient(
+        0deg,
+        rgba(255, 255, 255, 0.015) 0px,
+        rgba(255, 255, 255, 0.015) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+  }
+
+  ::selection {
+    background: var(--color-brass);
+    color: var(--color-ink);
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+  .font-data {
+    font-family: var(--font-data);
+  }
+
+  .glass-panel {
+    background: color-mix(in srgb, var(--color-surface) 80%, transparent);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--color-border-warm);
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-rise {
+  animation: rise-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}

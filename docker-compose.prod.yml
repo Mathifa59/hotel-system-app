@@ -1,0 +1,27 @@
+services:
+  backend:
+    volumes: !override []
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  frontend:
+    build:
+      context: ./frontend
+      target: runner
+    volumes: !override []
+
+  # nginx (dev) se reemplaza por Caddy en producción: HTTPS automático con
+  # Let's Encrypt sin certbot ni renovación manual, solo necesita DOMAIN
+  # apuntando por DNS a este servidor.
+  nginx:
+    image: caddy:2-alpine
+    volumes: !override
+      - ./nginx/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    ports: !override
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+
+volumes:
+  caddy_data:

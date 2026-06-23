@@ -1,0 +1,39 @@
+# ───── Secretos / entorno (NUNCA subir) ─────
+.env
+.env.*
+!.env.example
+
+# ───── Python / backend ─────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ───── Node / frontend ─────
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ───── Datos locales / respaldos ─────
+# Los datos de Postgres viven en el volumen de Docker (pg_data), no en el repo,
+# pero por si alguien genera un dump manual a mano, que no se suba.
+*.sql
+*.dump
+*.sqlite3
+
+# ───── Sistema operativo / editor ─────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.pem
