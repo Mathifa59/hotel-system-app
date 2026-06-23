@@ -25,8 +25,9 @@ yarn-debug.log*
 yarn-error.log*
 
 # ───── Datos locales / respaldos ─────
-# Los datos de Postgres viven en el volumen de Docker (pg_data), no en el repo,
-# pero por si alguien genera un dump manual a mano, que no se suba.
+# Los datos de Postgres viven en el volumen de Docker (pg_data), no en el repo.
+# Los respaldos (scripts/backup.sh) tampoco deben subirse a GitHub.
+backups/
 *.sql
 *.dump
 *.sqlite3

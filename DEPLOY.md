@@ -82,10 +82,36 @@ docker compose exec backend alembic upgrade head   # solo si hay migraciones nue
 
 ## Respaldo de la base de datos
 
-PostgreSQL guarda todo en un volumen Docker (`pg_data`) que sobrevive a reinicios y actualizaciones, pero no a un disco dañado. Respaldo simple manual:
+PostgreSQL guarda todo en un volumen Docker (`pg_data`) que sobrevive a reinicios y actualizaciones, pero **no a un disco dañado ni a un borrado accidental**. Por eso el respaldo es imprescindible antes de tener huéspedes reales.
+
+### Respaldo automático (recomendado)
+
+El repo incluye `scripts/backup.sh`, que genera un dump comprimido con fecha y conserva solo los últimos 14 días (rotación automática). Pruébalo a mano una vez:
+
+```bash
+./scripts/backup.sh
+# → backups/apu_hotel_2026-06-23_030000.sql.gz
+```
+
+Para que corra solo cada día, agrégalo al cron del servidor con `crontab -e`:
+
+```cron
+# Respaldo de Apu Gestión todos los días a las 3:00 AM
+0 3 * * * /ruta/a/hotel-system/scripts/backup.sh >> /ruta/a/hotel-system/backups/backup.log 2>&1
+```
+
+Ajustes opcionales por variables de entorno: `RETENTION_DAYS` (días a conservar, 14 por defecto) y `BACKUP_DIR` (carpeta destino).
+
+> **Importante:** los respaldos quedan en el mismo servidor. Para protección real ante un disco dañado, copia la carpeta `backups/` a otro lugar (otro disco, un bucket S3/Backblaze, o `rsync` a otra máquina) — un segundo paso aparte, no hace falta tocar el script.
+
+### Restaurar un respaldo
+
+```bash
+gunzip -c backups/apu_hotel_FECHA.sql.gz | docker compose exec -T db psql -U hotel -d hotel
+```
+
+### Respaldo manual rápido (alternativa)
 
 ```bash
 docker compose exec db pg_dump -U hotel hotel > respaldo-$(date +%F).sql
 ```
-
-Para automatizarlo, agrega esa línea a un cron diario (`crontab -e`) apuntando a una carpeta fuera del servidor (o sincronizada a otro lado).
