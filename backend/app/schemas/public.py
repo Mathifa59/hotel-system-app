@@ -9,6 +9,8 @@ from app.models.enums import ReservationStatus, RoomType
 class RoomTypeAvailability(BaseModel):
     type: RoomType
     available: bool
+    price_pen: float
+    price_usd: float
 
 
 class AvailabilityOut(BaseModel):

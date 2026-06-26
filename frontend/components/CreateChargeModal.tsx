@@ -3,15 +3,10 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import type { Charge, ChargeType, Reservation } from "@/lib/types";
+import { chargeTypeLabel } from "@/lib/labels";
 import { Modal } from "./Modal";
 
 const TYPES: ChargeType[] = ["damage", "extra_cleaning", "other"];
-const TYPE_LABEL: Record<ChargeType, string> = {
-  minibar: "Frigobar",
-  damage: "Daño",
-  extra_cleaning: "Limpieza extra",
-  other: "Otro",
-};
 
 export function CreateChargeModal({
   token,
@@ -26,7 +21,8 @@ export function CreateChargeModal({
   const [reservationId, setReservationId] = useState("");
   const [type, setType] = useState<ChargeType>("damage");
   const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
+  const [amountPen, setAmountPen] = useState("");
+  const [amountUsd, setAmountUsd] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -43,7 +39,7 @@ export function CreateChargeModal({
     try {
       const charge = await api.post<Charge>(
         "/charges",
-        { reservation_id: reservationId, type, description, amount },
+        { reservation_id: reservationId, type, description, amount_pen: amountPen, amount_usd: amountUsd },
         token
       );
       onCreated(charge);
@@ -82,7 +78,7 @@ export function CreateChargeModal({
       >
         {TYPES.map((t) => (
           <option key={t} value={t}>
-            {TYPE_LABEL[t]}
+            {chargeTypeLabel[t]}
           </option>
         ))}
       </select>
@@ -96,19 +92,28 @@ export function CreateChargeModal({
       />
 
       <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">Monto</label>
-      <input
-        value={amount}
-        onChange={(e) => setAmount(e.target.value)}
-        placeholder="0.00"
-        inputMode="decimal"
-        className="mb-3 w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment placeholder:text-parchment-dim/50 outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
-      />
+      <div className="mb-3 flex gap-2">
+        <input
+          value={amountPen}
+          onChange={(e) => setAmountPen(e.target.value)}
+          placeholder="S/ 0.00"
+          inputMode="decimal"
+          className="w-1/2 rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment placeholder:text-parchment-dim/50 outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
+        />
+        <input
+          value={amountUsd}
+          onChange={(e) => setAmountUsd(e.target.value)}
+          placeholder="$ 0.00"
+          inputMode="decimal"
+          className="w-1/2 rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment placeholder:text-parchment-dim/50 outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
+        />
+      </div>
 
       {error && <p className="mb-3 text-sm text-room-maintenance">{error}</p>}
 
       <button
         onClick={submit}
-        disabled={submitting || !reservationId || !description || !amount}
+        disabled={submitting || !reservationId || !description || !amountPen || !amountUsd}
         className="w-full rounded-lg bg-brass py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
       >
         {submitting ? "Creando…" : "Crear cargo"}

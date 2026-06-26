@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useRealtime } from "@/lib/ws";
 import { api, ApiError } from "@/lib/api";
-import type { Room, RoomType, RealtimeEvent } from "@/lib/types";
+import type { Reservation, Room, RoomType, RealtimeEvent } from "@/lib/types";
 import { roomTypeLabel } from "@/lib/labels";
 import { DashboardShell } from "@/components/DashboardShell";
 import { RoomGrid } from "@/components/RoomGrid";
@@ -26,21 +26,51 @@ export default function AdminRoomsPage() {
   const [selected, setSelected] = useState<Room | null>(null);
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [changedRoomNumbers, setChangedRoomNumbers] = useState<Set<string>>(new Set());
+  const [overdueRoomNumbers, setOverdueRoomNumbers] = useState<Set<string>>(new Set());
 
   const loadRooms = useCallback(() => {
     if (!token) return;
-    api.get<Room[]>("/rooms", token).then(setRooms).finally(() => setLoading(false));
+    api.get<Room[]>("/rooms", token).then((roomList) => {
+      setRooms(roomList);
+      setLoading(false);
+      const byId = Object.fromEntries(roomList.map((r) => [r.id, r.number]));
+      api.get<Reservation[]>("/reservations?status=active", token).then((active) => {
+        const now = Date.now();
+        setOverdueRoomNumbers(
+          new Set(
+            active
+              .filter((r) => new Date(r.check_out).getTime() < now)
+              .map((r) => byId[r.room_id])
+              .filter(Boolean)
+          )
+        );
+      });
+    });
   }, [token]);
 
   useEffect(loadRooms, [loadRooms]);
 
   const connected = useRealtime(token, (event: RealtimeEvent) => {
     if (event.event === "room_status_changed") {
+      const roomNumber = event.room as string;
       setRooms((prev) =>
-        prev.map((r) => (r.number === event.room ? { ...r, status: event.status as Room["status"] } : r))
+        prev.map((r) => (r.number === roomNumber ? { ...r, status: event.status as Room["status"] } : r))
       );
+      flagRoomChanged(roomNumber);
     }
   });
+
+  function flagRoomChanged(roomNumber: string) {
+    setChangedRoomNumbers((prev) => new Set(prev).add(roomNumber));
+    setTimeout(() => {
+      setChangedRoomNumbers((prev) => {
+        const next = new Set(prev);
+        next.delete(roomNumber);
+        return next;
+      });
+    }, 6000);
+  }
 
   useEffect(() => {
     if (connected) loadRooms();
@@ -61,7 +91,12 @@ export default function AdminRoomsPage() {
       {loading ? (
         <p className="text-sm text-parchment-dim">Cargando…</p>
       ) : (
-        <RoomGrid rooms={rooms} onSelect={setSelected} />
+        <RoomGrid
+          rooms={rooms}
+          onSelect={setSelected}
+          changedRoomNumbers={changedRoomNumbers}
+          overdueRoomNumbers={overdueRoomNumbers}
+        />
       )}
 
       {selected && token && (
@@ -69,6 +104,7 @@ export default function AdminRoomsPage() {
           room={selected}
           token={token}
           canEditStatus
+          canManageMinibar
           onClose={() => setSelected(null)}
           onUpdated={(updated) => {
             setRooms((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
@@ -95,7 +131,7 @@ function CreateRoomModal({
 }) {
   const [number, setNumber] = useState("");
   const [floor, setFloor] = useState(1);
-  const [type, setType] = useState<RoomType>("single");
+  const [type, setType] = useState<RoomType>("individual");
   const [hasMinibar, setHasMinibar] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -138,7 +174,7 @@ function CreateRoomModal({
         onChange={(e) => setType(e.target.value as RoomType)}
         className="mb-3 w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
       >
-        {(["single", "double", "suite"] as RoomType[]).map((t) => (
+        {(["individual", "doble", "doble_deluxe", "doble_deluxe_twin", "deluxe_extragrande"] as RoomType[]).map((t) => (
           <option key={t} value={t}>
             {roomTypeLabel[t]}
           </option>

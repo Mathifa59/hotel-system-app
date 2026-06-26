@@ -19,7 +19,8 @@ class Charge(Base):
     reservation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("reservations.id"))
     type: Mapped[ChargeType] = mapped_column(Enum(ChargeType, name="charge_type"))
     description: Mapped[str] = mapped_column(Text)
-    amount: Mapped[float] = mapped_column(Numeric(10, 2))
+    amount_pen: Mapped[float] = mapped_column(Numeric(10, 2))
+    amount_usd: Mapped[float] = mapped_column(Numeric(10, 2))
     status: Mapped[ChargeStatus] = mapped_column(
         Enum(ChargeStatus, name="charge_status"),
         default=ChargeStatus.pending,

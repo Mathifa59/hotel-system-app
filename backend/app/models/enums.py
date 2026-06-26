@@ -8,9 +8,11 @@ class UserRole(str, enum.Enum):
 
 
 class RoomType(str, enum.Enum):
-    single = "single"
-    double = "double"
-    suite = "suite"
+    individual = "individual"
+    doble = "doble"
+    doble_deluxe = "doble_deluxe"
+    doble_deluxe_twin = "doble_deluxe_twin"
+    deluxe_extragrande = "deluxe_extragrande"
 
 
 class RoomStatus(str, enum.Enum):
@@ -42,12 +44,14 @@ class ChargeType(str, enum.Enum):
     damage = "damage"
     extra_cleaning = "extra_cleaning"
     other = "other"
+    room = "room"
 
 
 class ChargeStatus(str, enum.Enum):
     pending = "pending"
     approved = "approved"
     billed = "billed"
+    cancelled = "cancelled"
 
 
 class ReservationStatus(str, enum.Enum):

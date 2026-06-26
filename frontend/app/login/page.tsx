@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
+import { Logo } from "@/components/Logo";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -35,11 +36,9 @@ export default function LoginPage() {
       />
 
       <div className="relative z-10 flex w-full max-w-sm flex-col items-center">
-        <div className="mb-10 animate-rise text-center" style={{ animationDelay: "0ms" }}>
-          <p className="font-display text-4xl italic text-parchment">
-            Apu Gestión<span className="text-brass">.</span>
-          </p>
-          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-parchment-dim">
+        <div className="mb-10 flex animate-rise flex-col items-center text-center" style={{ animationDelay: "0ms" }}>
+          <Logo className="h-14 w-auto" />
+          <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-parchment-dim">
             Sistema operativo del hotel
           </p>
         </div>

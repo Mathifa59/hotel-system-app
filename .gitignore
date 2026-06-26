@@ -3,6 +3,15 @@
 .env.*
 !.env.example
 
+# Certificado local del antivirus (Kaspersky hace TLS interception) — solo
+# necesario en esta máquina de desarrollo para que npm pueda instalar dentro
+# de Docker. No tiene sentido en otra máquina ni en producción.
+kaspersky-ca.pem
+
+# Override de Docker Compose solo para esta máquina (monta el certificado de
+# Kaspersky en el frontend para que pueda bajar Google Fonts en dev).
+docker-compose.override.yml
+
 # ───── Python / backend ─────
 __pycache__/
 *.py[cod]

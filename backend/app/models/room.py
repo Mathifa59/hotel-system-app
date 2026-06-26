@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Boolean, Enum, SmallInteger, String, Text, text
+from sqlalchemy import Boolean, Enum, Numeric, SmallInteger, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,3 +24,14 @@ class Room(Base):
     )
     has_minibar: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class RoomTypeRate(Base):
+    """Tarifa fija por noche de cada tipo de habitación — no por cuarto individual,
+    ya que varios cuartos comparten el mismo tipo y deben cobrar lo mismo."""
+
+    __tablename__ = "room_type_rates"
+
+    type: Mapped[RoomType] = mapped_column(Enum(RoomType, name="room_type"), primary_key=True)
+    price_pen: Mapped[float] = mapped_column(Numeric(8, 2))
+    price_usd: Mapped[float] = mapped_column(Numeric(8, 2))

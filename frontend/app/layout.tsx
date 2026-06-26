@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Fraunces, Archivo, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
+import { CurrencyProvider } from "@/lib/currency";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 
 const fraunces = Fraunces({
@@ -52,7 +53,9 @@ export default function RootLayout({
     >
       <body className="min-h-full bg-ink text-parchment font-ui">
         <ServiceWorkerRegister />
-        <AuthProvider>{children}</AuthProvider>
+        <CurrencyProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </CurrencyProvider>
       </body>
     </html>
   );

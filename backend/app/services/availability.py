@@ -2,7 +2,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from app.models.enums import ReservationStatus, RoomType
+from app.models.enums import ReservationStatus, RoomStatus, RoomType
 from app.models.reservation import Reservation
 from app.models.room import Room
 
@@ -15,7 +15,13 @@ def find_available_room(db: Session, room_type: RoomType, check_in: datetime, ch
     )
     return (
         db.query(Room)
-        .filter(Room.type == room_type, ~Room.id.in_(overlapping_room_ids))
+        # Un cuarto en mantenimiento está fuera de servicio: no se ofrece para
+        # reservar aunque no tenga reservas que se crucen con esas fechas.
+        .filter(
+            Room.type == room_type,
+            Room.status != RoomStatus.maintenance,
+            ~Room.id.in_(overlapping_room_ids),
+        )
         .order_by(Room.number)
         .first()
     )

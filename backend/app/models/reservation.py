@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text, text
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, SmallInteger, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -23,6 +23,7 @@ class Reservation(Base):
     guest_id_document: Mapped[str | None] = mapped_column(String(50), nullable=True)
     check_in: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     check_out: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    guests: Mapped[int] = mapped_column(SmallInteger, default=1, server_default=text("1"))
     status: Mapped[ReservationStatus] = mapped_column(
         Enum(ReservationStatus, name="reservation_status"),
         default=ReservationStatus.pending,

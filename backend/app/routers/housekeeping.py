@@ -53,9 +53,9 @@ def create_request(
         db,
         user_id=current_user.id,
         action="cleaning.requested",
-        entity="cleaning_requests",
-        entity_id=request.id,
-        meta={"room": room.number, "request_type": data.request_type.value},
+        entity="rooms",
+        entity_id=room.id,
+        meta={"request_type": data.request_type.value},
     )
     create_notification(
         db,
@@ -123,10 +123,8 @@ def start_request(
     request.started_at = datetime.now(timezone.utc)
     request.assigned_to = current_user.id
 
-    log_activity(
-        db, user_id=current_user.id, action="cleaning.started", entity="cleaning_requests", entity_id=request.id
-    )
     room = db.get(Room, request.room_id)
+    log_activity(db, user_id=current_user.id, action="cleaning.started", entity="rooms", entity_id=room.id)
     create_notification(
         db,
         audience="admin",
@@ -165,9 +163,7 @@ def complete_request(
     room = db.get(Room, request.room_id)
     room.status = RoomStatus.clean
 
-    log_activity(
-        db, user_id=current_user.id, action="cleaning.completed", entity="cleaning_requests", entity_id=request.id
-    )
+    log_activity(db, user_id=current_user.id, action="cleaning.completed", entity="rooms", entity_id=room.id)
     create_notification(
         db,
         audience="reception",
@@ -230,8 +226,8 @@ def skip_request(
         db,
         user_id=current_user.id,
         action="cleaning.skipped",
-        entity="cleaning_requests",
-        entity_id=request.id,
+        entity="rooms",
+        entity_id=room.id,
         meta={"notes": data.notes} if data.notes else None,
     )
     create_notification(

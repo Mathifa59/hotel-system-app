@@ -3,12 +3,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useRealtime } from "@/lib/ws";
+import { useCurrency } from "@/lib/currency";
 import { api } from "@/lib/api";
 import type { CleaningRequest, MinibarProduct, RealtimeEvent, Reservation, Room, StockItem } from "@/lib/types";
 import { cleaningTypeLabel, formatMoney } from "@/lib/labels";
 import { DashboardShell } from "@/components/DashboardShell";
 
-const NAV = [{ href: "/cleaning", label: "Mis tareas" }];
+const NAV = [
+  { href: "/cleaning", label: "Mis tareas" },
+  { href: "/cleaning/cuartos", label: "Cuartos" },
+];
 
 export default function CleaningPage() {
   const { token } = useAuth();
@@ -173,15 +177,18 @@ function TaskCard({
         </div>
       </div>
 
-      {showMinibar && room && <MinibarPanel room={room} token={token} />}
+      {showMinibar && room && (
+        <MinibarPanel room={room} token={token} reservationId={request.reservation_id ?? undefined} />
+      )}
     </div>
   );
 }
 
-function MinibarPanel({ room, token }: { room: Room; token: string }) {
+function MinibarPanel({ room, token, reservationId: fixedReservationId }: { room: Room; token: string; reservationId?: string }) {
+  const { currency } = useCurrency();
   const [products, setProducts] = useState<MinibarProduct[]>([]);
   const [stock, setStock] = useState<StockItem[]>([]);
-  const [reservationId, setReservationId] = useState<string | null>(null);
+  const [reservationId, setReservationId] = useState<string | null>(fixedReservationId ?? null);
   const [qty, setQty] = useState<Record<string, number>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -189,10 +196,11 @@ function MinibarPanel({ room, token }: { room: Room; token: string }) {
   useEffect(() => {
     api.get<MinibarProduct[]>("/minibar/products", token).then(setProducts);
     api.get<StockItem[]>(`/minibar/stock?room_id=${room.id}`, token).then(setStock);
-    api.get<Reservation[]>(`/reservations?room_id=${room.id}&status=active`, token).then((list) => {
+    if (fixedReservationId) return;
+    api.get<Reservation[]>(`/reservations?room_id=${room.id}`, token).then((list) => {
       setReservationId(list[0]?.id ?? null);
     });
-  }, [room.id, token]);
+  }, [room.id, token, fixedReservationId]);
 
   function setQuantity(productId: string, value: number, max: number) {
     setQty((prev) => ({ ...prev, [productId]: Math.max(0, Math.min(max, value)) }));
@@ -222,7 +230,7 @@ function MinibarPanel({ room, token }: { room: Room; token: string }) {
   return (
     <div className="mt-4 border-t border-border-warm/50 pt-4">
       {!reservationId && (
-        <p className="mb-3 text-sm text-room-maintenance">Este cuarto no tiene una reserva activa registrada.</p>
+        <p className="mb-3 text-sm text-room-maintenance">No se encontró una reserva reciente para este cuarto.</p>
       )}
       <div className="space-y-2">
         {products.map((p) => {
@@ -233,7 +241,7 @@ function MinibarPanel({ room, token }: { room: Room; token: string }) {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm text-parchment">{p.name}</p>
                 <p className="text-[11px] text-parchment-dim">
-                  {formatMoney(p.price)} · stock {max}
+                  {formatMoney({ pen: p.price_pen, usd: p.price_usd }, currency)} · stock {max}
                 </p>
               </div>
               <div className="flex items-center gap-2">

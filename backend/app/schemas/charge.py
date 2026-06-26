@@ -11,7 +11,14 @@ class ChargeCreate(BaseModel):
     reservation_id: uuid.UUID
     type: ChargeType
     description: str
-    amount: Decimal
+    amount_pen: Decimal
+    amount_usd: Decimal
+
+
+class ChargeUpdate(BaseModel):
+    description: str | None = None
+    amount_pen: Decimal | None = None
+    amount_usd: Decimal | None = None
 
 
 class ChargeOut(BaseModel):
@@ -21,7 +28,8 @@ class ChargeOut(BaseModel):
     reservation_id: uuid.UUID
     type: ChargeType
     description: str
-    amount: Decimal
+    amount_pen: Decimal
+    amount_usd: Decimal
     status: ChargeStatus
     created_by: uuid.UUID
     created_at: datetime

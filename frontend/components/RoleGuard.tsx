@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import type { Role } from "@/lib/types";
+import { Logo } from "./Logo";
 
 export function RoleGuard({ role, children }: { role: Role; children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -18,7 +19,7 @@ export function RoleGuard({ role, children }: { role: Role; children: ReactNode 
   if (loading || !user || user.role !== role) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <span className="font-display text-2xl italic text-brass/80">Apu Gestión…</span>
+        <Logo className="h-10 w-auto opacity-80" />
       </div>
     );
   }

@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
 import { NotificationBell } from "./NotificationBell";
+import { Logo } from "./Logo";
+import { CurrencyToggle } from "./CurrencyToggle";
 
 type NavItem = { href: string; label: string };
 
@@ -27,9 +29,7 @@ export function DashboardShell({
       <header className="glass-panel sticky top-0 z-20 border-b border-border-warm/60">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-3 py-3.5 sm:gap-4 sm:px-5">
           <div className="flex items-center gap-3">
-            <span className="whitespace-nowrap font-display text-lg italic text-parchment sm:text-xl">
-              Apu Gestión<span className="text-brass">.</span>
-            </span>
+            <Logo className="h-7 w-auto sm:h-8" />
             <span className="hidden text-[11px] uppercase tracking-[0.2em] text-parchment-dim sm:inline">
               {title}
             </span>
@@ -53,6 +53,7 @@ export function DashboardShell({
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            <CurrencyToggle />
             <span
               className="flex items-center gap-1.5 text-[11px] text-parchment-dim"
               title={connected ? "Conectado en tiempo real" : "Reconectando…"}

@@ -6,10 +6,13 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.enums import ReservationSource, ReservationStatus, RoomType
 from app.models.reservation import Reservation
+from app.models.room import RoomTypeRate
 from app.schemas.public import AvailabilityOut, BookingRequestCreate, BookingRequestOut, RoomTypeAvailability
 from app.services.activity_log import log_activity
 from app.services.availability import find_available_room
+from app.services.capacity import ROOM_CAPACITY
 from app.services.events import publish_event
+from app.services.labels import ROOM_TYPE_LABEL
 from app.services.notifications import create_notification
 from app.services.rate_limit import rate_limit
 
@@ -25,8 +28,14 @@ def check_availability(
     if check_out <= check_in:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="check_out debe ser posterior a check_in")
 
+    rates = {rate.type: rate for rate in db.query(RoomTypeRate).all()}
     room_types = [
-        RoomTypeAvailability(type=t, available=find_available_room(db, t, check_in, check_out) is not None)
+        RoomTypeAvailability(
+            type=t,
+            available=find_available_room(db, t, check_in, check_out) is not None,
+            price_pen=rates[t].price_pen,
+            price_usd=rates[t].price_usd,
+        )
         for t in RoomType
     ]
     return AvailabilityOut(check_in=check_in, check_out=check_out, room_types=room_types)
@@ -45,6 +54,13 @@ def create_booking_request(
     if data.check_out <= data.check_in:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="check_out debe ser posterior a check_in")
 
+    capacity = ROOM_CAPACITY[data.room_type]
+    if data.guests > capacity:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=f"Ese tipo de cuarto admite máximo {capacity} huésped(es)",
+        )
+
     room = find_available_room(db, data.room_type, data.check_in, data.check_out)
     if room is None:
         raise HTTPException(
@@ -58,6 +74,7 @@ def create_booking_request(
         guest_phone=data.guest_phone,
         check_in=data.check_in,
         check_out=data.check_out,
+        guests=data.guests,
         notes=data.notes,
         status=ReservationStatus.pending,
         source=ReservationSource.website,
@@ -74,7 +91,7 @@ def create_booking_request(
         entity_id=reservation.id,
         meta={"room": room.number, "guest": data.guest_name},
     )
-    message = f"Nueva solicitud del sitio web — {data.guest_name}, cuarto {room.number} ({room.type.value})"
+    message = f"Nueva solicitud del sitio web — {data.guest_name}, cuarto {room.number} ({ROOM_TYPE_LABEL[room.type]})"
     for audience in ("reception", "admin"):
         create_notification(
             db,

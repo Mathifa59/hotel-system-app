@@ -7,7 +7,8 @@ from pydantic import BaseModel, ConfigDict
 
 class MinibarProductCreate(BaseModel):
     name: str
-    price: Decimal
+    price_pen: Decimal
+    price_usd: Decimal
     cost: Decimal
     is_active: bool = True
 
@@ -17,7 +18,8 @@ class MinibarProductOut(BaseModel):
 
     id: uuid.UUID
     name: str
-    price: Decimal
+    price_pen: Decimal
+    price_usd: Decimal
     cost: Decimal
     is_active: bool
 
@@ -58,8 +60,10 @@ class ConsumptionOut(BaseModel):
     reservation_id: uuid.UUID
     product_id: uuid.UUID
     quantity: int
-    unit_price: Decimal
-    total: Decimal
+    unit_price_pen: Decimal
+    unit_price_usd: Decimal
+    total_pen: Decimal
+    total_usd: Decimal
     registered_by: uuid.UUID
     registered_at: datetime
 
@@ -67,4 +71,5 @@ class ConsumptionOut(BaseModel):
 class ConsumptionRegisterOut(BaseModel):
     consumptions: list[ConsumptionOut]
     charge_id: uuid.UUID
-    charge_total: Decimal
+    charge_total_pen: Decimal
+    charge_total_usd: Decimal

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useRealtime } from "@/lib/ws";
+import { useCurrency } from "@/lib/currency";
 import { api, ApiError } from "@/lib/api";
 import type { MinibarProduct, Room, StockItem } from "@/lib/types";
 import { formatMoney } from "@/lib/labels";
@@ -20,6 +21,7 @@ const NAV = [
 export default function FrigobarPage() {
   const { token } = useAuth();
   const connected = useRealtime(token, () => {});
+  const { currency } = useCurrency();
 
   const [products, setProducts] = useState<MinibarProduct[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -28,7 +30,8 @@ export default function FrigobarPage() {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
 
   const [name, setName] = useState("");
-  const [price, setPrice] = useState("");
+  const [pricePen, setPricePen] = useState("");
+  const [priceUsd, setPriceUsd] = useState("");
   const [cost, setCost] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -54,10 +57,15 @@ export default function FrigobarPage() {
     if (!token) return;
     setError(null);
     try {
-      const product = await api.post<MinibarProduct>("/minibar/products", { name, price, cost }, token);
+      const product = await api.post<MinibarProduct>(
+        "/minibar/products",
+        { name, price_pen: pricePen, price_usd: priceUsd, cost },
+        token
+      );
       setProducts((prev) => [...prev, product]);
       setName("");
-      setPrice("");
+      setPricePen("");
+      setPriceUsd("");
       setCost("");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo crear el producto");
@@ -86,7 +94,7 @@ export default function FrigobarPage() {
             {products.map((p) => (
               <div key={p.id} className="flex items-center justify-between rounded-lg border border-border-warm/60 px-3 py-2 text-sm">
                 <span className="text-parchment">{p.name}</span>
-                <span className="font-data text-brass">{formatMoney(p.price)}</span>
+                <span className="font-data text-brass">{formatMoney({ pen: p.price_pen, usd: p.price_usd }, currency)}</span>
               </div>
             ))}
             {products.length === 0 && <p className="text-sm text-parchment-dim">Sin productos todavía.</p>}
@@ -102,24 +110,31 @@ export default function FrigobarPage() {
             />
             <div className="mb-3 flex gap-2">
               <input
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="Precio"
+                value={pricePen}
+                onChange={(e) => setPricePen(e.target.value)}
+                placeholder="Precio S/"
                 inputMode="decimal"
-                className="w-1/2 rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment placeholder:text-parchment-dim/50 outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
+                className="w-1/3 rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment placeholder:text-parchment-dim/50 outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
+              />
+              <input
+                value={priceUsd}
+                onChange={(e) => setPriceUsd(e.target.value)}
+                placeholder="Precio $"
+                inputMode="decimal"
+                className="w-1/3 rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment placeholder:text-parchment-dim/50 outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
               />
               <input
                 value={cost}
                 onChange={(e) => setCost(e.target.value)}
                 placeholder="Costo"
                 inputMode="decimal"
-                className="w-1/2 rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment placeholder:text-parchment-dim/50 outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
+                className="w-1/3 rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment placeholder:text-parchment-dim/50 outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
               />
             </div>
             {error && <p className="mb-3 text-sm text-room-maintenance">{error}</p>}
             <button
               onClick={addProduct}
-              disabled={!name || !price || !cost}
+              disabled={!name || !pricePen || !priceUsd || !cost}
               className="w-full rounded-lg bg-brass py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
             >
               Agregar

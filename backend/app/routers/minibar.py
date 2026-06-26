@@ -34,10 +34,19 @@ def list_products(db: Session = Depends(get_db), current_user: User = Depends(ge
 def create_product(
     data: MinibarProductCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.admin)),
+    current_user: User = Depends(require_role(UserRole.admin, UserRole.cleaning)),
 ):
     product = MinibarProduct(**data.model_dump())
     db.add(product)
+    db.flush()
+    log_activity(
+        db,
+        user_id=current_user.id,
+        action="minibar_product.created",
+        entity="minibar_products",
+        entity_id=product.id,
+        meta={"name": product.name},
+    )
     db.commit()
     db.refresh(product)
     return product
@@ -56,13 +65,14 @@ def get_stock(
 def set_stock(
     data: StockSetRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.admin)),
+    current_user: User = Depends(require_role(UserRole.admin, UserRole.cleaning)),
 ):
     """Setea/reabastece el stock de un producto en un cuarto (upsert)."""
     room = db.get(Room, data.room_id)
     if room is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cuarto no encontrado")
-    if not db.get(MinibarProduct, data.product_id):
+    product = db.get(MinibarProduct, data.product_id)
+    if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado")
 
     stock = (
@@ -82,6 +92,14 @@ def set_stock(
         stock.quantity = data.quantity
         stock.initial_quantity = data.quantity
 
+    log_activity(
+        db,
+        user_id=current_user.id,
+        action="minibar_stock.updated",
+        entity="rooms",
+        entity_id=room.id,
+        meta={"product": product.name, "quantity": data.quantity},
+    )
     db.commit()
     db.refresh(stock)
     return stock
@@ -120,31 +138,37 @@ def register_consumption(
         stocks_by_product[item.product_id] = (product, stock)
 
     consumptions = []
-    total = 0
+    total_pen = 0
+    total_usd = 0
     for item in data.items:
         product, stock = stocks_by_product[item.product_id]
-        line_total = product.price * item.quantity
+        line_total_pen = product.price_pen * item.quantity
+        line_total_usd = product.price_usd * item.quantity
 
         consumption = MinibarConsumption(
             room_id=data.room_id,
             reservation_id=data.reservation_id,
             product_id=item.product_id,
             quantity=item.quantity,
-            unit_price=product.price,
-            total=line_total,
+            unit_price_pen=product.price_pen,
+            unit_price_usd=product.price_usd,
+            total_pen=line_total_pen,
+            total_usd=line_total_usd,
             registered_by=current_user.id,
         )
         db.add(consumption)
         consumptions.append(consumption)
 
         stock.quantity -= item.quantity
-        total += line_total
+        total_pen += line_total_pen
+        total_usd += line_total_usd
 
     charge = Charge(
         reservation_id=data.reservation_id,
         type=ChargeType.minibar,
         description=f"Consumo frigobar cuarto {room.number}",
-        amount=total,
+        amount_pen=total_pen,
+        amount_usd=total_usd,
         status=ChargeStatus.pending,
         created_by=current_user.id,
     )
@@ -155,20 +179,20 @@ def register_consumption(
         db,
         user_id=current_user.id,
         action="minibar.registered",
-        entity="minibar_consumptions",
-        entity_id=charge.id,
+        entity="rooms",
+        entity_id=room.id,
         meta={
-            "room": room.number,
             "items": [{"product_id": str(i.product_id), "quantity": i.quantity} for i in data.items],
-            "total": str(total),
+            "total_pen": str(total_pen),
+            "total_usd": str(total_usd),
         },
     )
     create_notification(
         db,
         audience="admin",
         event="minibar_consumption_registered",
-        message=f"Consumo de frigobar registrado — cuarto {room.number} (${total})",
-        meta={"room": room.number, "charge_id": str(charge.id), "total": str(total)},
+        message=f"Consumo de frigobar registrado — cuarto {room.number} (S/ {total_pen})",
+        meta={"room": room.number, "charge_id": str(charge.id), "total_pen": str(total_pen), "total_usd": str(total_usd)},
     )
     db.commit()
     for c in consumptions:
@@ -178,7 +202,17 @@ def register_consumption(
     publish_event(
         "minibar_consumption_registered",
         audiences=["admin"],
-        payload={"room": room.number, "charge_id": str(charge.id), "total": str(charge.amount)},
+        payload={
+            "room": room.number,
+            "charge_id": str(charge.id),
+            "total_pen": str(charge.amount_pen),
+            "total_usd": str(charge.amount_usd),
+        },
     )
 
-    return ConsumptionRegisterOut(consumptions=consumptions, charge_id=charge.id, charge_total=charge.amount)
+    return ConsumptionRegisterOut(
+        consumptions=consumptions,
+        charge_id=charge.id,
+        charge_total_pen=charge.amount_pen,
+        charge_total_usd=charge.amount_usd,
+    )

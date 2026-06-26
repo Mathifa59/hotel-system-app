@@ -1,5 +1,6 @@
 import type {
   ChargeStatus,
+  ChargeType,
   CleaningRequestStatus,
   CleaningRequestType,
   ReservationStatus,
@@ -7,6 +8,7 @@ import type {
   RoomStatus,
   RoomType,
 } from "./types";
+import type { Currency } from "./currency";
 
 export const roleLabel: Record<Role, string> = {
   admin: "Admin",
@@ -33,9 +35,11 @@ export const roomStatusColor: Record<RoomStatus, string> = {
 };
 
 export const roomTypeLabel: Record<RoomType, string> = {
-  single: "Individual",
-  double: "Doble",
-  suite: "Suite",
+  individual: "Individual",
+  doble: "Doble",
+  doble_deluxe: "Doble Deluxe",
+  doble_deluxe_twin: "Doble Deluxe - 2 camas",
+  deluxe_extragrande: "Deluxe con cama extragrande",
 };
 
 export const cleaningTypeLabel: Record<CleaningRequestType, string> = {
@@ -57,6 +61,15 @@ export const chargeStatusLabel: Record<ChargeStatus, string> = {
   pending: "Pendiente",
   approved: "Aprobado",
   billed: "Cobrado",
+  cancelled: "Anulado",
+};
+
+export const chargeTypeLabel: Record<ChargeType, string> = {
+  room: "Alojamiento",
+  minibar: "Frigobar",
+  damage: "Daño",
+  extra_cleaning: "Limpieza extra",
+  other: "Otro",
 };
 
 export const reservationStatusLabel: Record<ReservationStatus, string> = {
@@ -66,8 +79,10 @@ export const reservationStatusLabel: Record<ReservationStatus, string> = {
   cancelled: "Cancelada",
 };
 
-export function formatMoney(value: string | number): string {
-  return `$${Number(value).toFixed(2)}`;
+export function formatMoney(amounts: { pen: string | number; usd: string | number }, currency: Currency): string {
+  const value = currency === "PEN" ? amounts.pen : amounts.usd;
+  const symbol = currency === "PEN" ? "S/" : "$";
+  return `${symbol} ${Number(value).toFixed(2)}`;
 }
 
 export function formatDateTime(value: string): string {

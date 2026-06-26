@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
+import { Logo } from "@/components/Logo";
 
 export default function Home() {
   const { user, loading } = useAuth();
@@ -15,7 +16,7 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen items-center justify-center">
-      <span className="font-display text-2xl italic text-brass/80">Apu Gestión…</span>
+      <Logo className="h-10 w-auto opacity-80" />
     </div>
   );
 }

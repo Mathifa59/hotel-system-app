@@ -1,10 +1,10 @@
 export type Role = "admin" | "reception" | "cleaning";
 export type RoomStatus = "available" | "occupied" | "cleaning" | "clean" | "maintenance" | "do_not_disturb";
-export type RoomType = "single" | "double" | "suite";
+export type RoomType = "individual" | "doble" | "doble_deluxe" | "doble_deluxe_twin" | "deluxe_extragrande";
 export type CleaningRequestType = "full" | "sheets_only" | "towels_only" | "partial" | "do_not_enter";
 export type CleaningRequestStatus = "pending" | "in_progress" | "completed" | "skipped";
-export type ChargeType = "minibar" | "damage" | "extra_cleaning" | "other";
-export type ChargeStatus = "pending" | "approved" | "billed";
+export type ChargeType = "minibar" | "damage" | "extra_cleaning" | "other" | "room";
+export type ChargeStatus = "pending" | "approved" | "billed" | "cancelled";
 export type ReservationStatus = "pending" | "active" | "checked_out" | "cancelled";
 export type ReservationSource = "staff" | "website";
 
@@ -44,7 +44,8 @@ export interface CleaningRequest {
 export interface MinibarProduct {
   id: string;
   name: string;
-  price: string;
+  price_pen: string;
+  price_usd: string;
   cost: string;
   is_active: boolean;
 }
@@ -63,7 +64,8 @@ export interface Charge {
   reservation_id: string;
   type: ChargeType;
   description: string;
-  amount: string;
+  amount_pen: string;
+  amount_usd: string;
   status: ChargeStatus;
   created_by: string;
   created_at: string;
@@ -79,11 +81,21 @@ export interface Reservation {
   notes: string | null;
   check_in: string;
   check_out: string;
+  guests: number;
   status: ReservationStatus;
   source: ReservationSource;
   confirmed: boolean;
   created_by: string | null;
   created_at: string;
+}
+
+export interface ReservationFolio {
+  nights: number;
+  room_charge_pen: string;
+  room_charge_usd: string;
+  charges: Charge[];
+  total_pen: string;
+  total_usd: string;
 }
 
 export interface OccupancyReport {
@@ -96,12 +108,26 @@ export interface MinibarReportItem {
   product_id: string;
   product_name: string;
   total_quantity: number;
-  total_revenue: string;
+  total_revenue_pen: string;
+  total_revenue_usd: string;
 }
 
 export interface MinibarReport {
   items: MinibarReportItem[];
-  total_revenue: string;
+  total_revenue_pen: string;
+  total_revenue_usd: string;
+}
+
+export interface IncomeReportItem {
+  type: ChargeType;
+  total_pen: string;
+  total_usd: string;
+}
+
+export interface IncomeReport {
+  items: IncomeReportItem[];
+  total_pen: string;
+  total_usd: string;
 }
 
 export interface RealtimeEvent {

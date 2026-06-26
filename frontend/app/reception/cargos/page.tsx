@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useRealtime } from "@/lib/ws";
+import { useCurrency } from "@/lib/currency";
 import { api } from "@/lib/api";
 import type { Charge, ChargeStatus, RealtimeEvent } from "@/lib/types";
 import { chargeStatusLabel, formatDateTime, formatMoney } from "@/lib/labels";
 import { DashboardShell } from "@/components/DashboardShell";
 import { CreateChargeModal } from "@/components/CreateChargeModal";
+import { EditChargeModal } from "@/components/EditChargeModal";
 
 const NAV = [
   { href: "/reception", label: "Cuartos" },
@@ -24,10 +26,12 @@ const FILTERS: { value: ChargeStatus | "all"; label: string }[] = [
 
 export default function ReceptionChargesPage() {
   const { token } = useAuth();
+  const { currency } = useCurrency();
   const [charges, setCharges] = useState<Charge[]>([]);
   const [filter, setFilter] = useState<ChargeStatus | "all">("approved");
   const [busy, setBusy] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [editingCharge, setEditingCharge] = useState<Charge | null>(null);
 
   const load = useCallback(() => {
     if (!token) return;
@@ -46,6 +50,18 @@ export default function ReceptionChargesPage() {
     setBusy(id);
     try {
       await api.patch(`/charges/${id}/bill`, undefined, token);
+      load();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function cancelCharge(id: string) {
+    if (!token) return;
+    if (!window.confirm("¿Anular este cargo? No se incluirá en la cuenta ni en los reportes.")) return;
+    setBusy(id);
+    try {
+      await api.patch(`/charges/${id}/cancel`, undefined, token);
       load();
     } finally {
       setBusy(null);
@@ -86,7 +102,7 @@ export default function ReceptionChargesPage() {
               <p className="text-[11px] text-parchment-dim">{formatDateTime(c.created_at)}</p>
             </div>
             <div className="flex items-center gap-3">
-              <span className="font-data text-lg text-brass">{formatMoney(c.amount)}</span>
+              <span className="font-data text-lg text-brass">{formatMoney({ pen: c.amount_pen, usd: c.amount_usd }, currency)}</span>
               <span className="rounded-full bg-ink/60 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-parchment-dim">
                 {chargeStatusLabel[c.status]}
               </span>
@@ -99,6 +115,24 @@ export default function ReceptionChargesPage() {
                   Cobrar
                 </button>
               )}
+              {c.status === "pending" && (
+                <button
+                  onClick={() => setEditingCharge(c)}
+                  disabled={busy === c.id}
+                  className="rounded-lg border border-border-warm px-3 py-1.5 text-xs font-medium text-parchment-dim transition hover:border-brass/40 hover:text-brass disabled:opacity-50"
+                >
+                  Corregir
+                </button>
+              )}
+              {c.status !== "cancelled" && (
+                <button
+                  onClick={() => cancelCharge(c.id)}
+                  disabled={busy === c.id}
+                  className="rounded-lg border border-border-warm px-3 py-1.5 text-xs font-medium text-parchment-dim transition hover:border-room-maintenance/40 hover:text-room-maintenance disabled:opacity-50"
+                >
+                  Anular
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -107,6 +141,18 @@ export default function ReceptionChargesPage() {
 
       {creating && token && (
         <CreateChargeModal token={token} onClose={() => setCreating(false)} onCreated={() => load()} />
+      )}
+
+      {editingCharge && token && (
+        <EditChargeModal
+          charge={editingCharge}
+          token={token}
+          onClose={() => setEditingCharge(null)}
+          onUpdated={() => {
+            setEditingCharge(null);
+            load();
+          }}
+        />
       )}
     </DashboardShell>
   );

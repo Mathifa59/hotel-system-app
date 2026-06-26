@@ -1,4 +1,12 @@
-from app.models.enums import CleaningRequestType, RoomStatus
+from app.models.enums import CleaningRequestType, RoomStatus, RoomType
+
+ROOM_TYPE_LABEL = {
+    RoomType.individual: "Individual",
+    RoomType.doble: "Doble",
+    RoomType.doble_deluxe: "Doble Deluxe",
+    RoomType.doble_deluxe_twin: "Doble Deluxe - 2 camas",
+    RoomType.deluxe_extragrande: "Deluxe con cama extragrande",
+}
 
 ROOM_STATUS_LABEL = {
     RoomStatus.available: "Disponible",
