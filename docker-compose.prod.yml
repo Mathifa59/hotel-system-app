@@ -1,6 +1,7 @@
 services:
   backend:
     volumes: !override []
+    ports: !override []
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
 
   frontend:
@@ -8,20 +9,24 @@ services:
       context: ./frontend
       target: runner
     volumes: !override []
+    ports: !override []
 
-  # nginx (dev) se reemplaza por Caddy en producción: HTTPS automático con
-  # Let's Encrypt sin certbot ni renovación manual, solo necesita DOMAIN
-  # apuntando por DNS a este servidor.
+  # Sitio público (apu-garden-lodge.com) — repo hermano, clonado al mismo
+  # nivel que esta carpeta (ver README de despliegue).
+  web:
+    build:
+      context: ../apu-garden-lodge-web
+      target: runner
+
+  # nginx (dev) usa un config distinto en producción: agrega el server block
+  # del sitio público y quita el bind-mount de código fuente. Cloudflare ya
+  # termina HTTPS hacia el visitante (proxy activado, modo Flexible) — el
+  # origen solo necesita servir HTTP en el puerto 80, sin certificados
+  # propios que mantener.
   nginx:
-    image: caddy:2-alpine
     volumes: !override
-      - ./nginx/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-    ports: !override
-      - "80:80"
-      - "443:443"
-    environment:
-      DOMAIN: ${DOMAIN}
-
-volumes:
-  caddy_data:
+      - ./nginx/nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on: !override
+      - backend
+      - frontend
+      - web
