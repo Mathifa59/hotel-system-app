@@ -32,6 +32,14 @@ Este documento resume todo lo construido hasta ahora en los dos proyectos:
 - Página Nosotros, Novedad (observación astronómica), Contacto.
 - Todo en español e inglés.
 
+### SEO
+- Metadata por página y por idioma (título, descripción), canonical y hreflang (es/en) en las 6 páginas.
+- Sitemap.xml y robots.txt generados automáticamente.
+- Datos estructurados (JSON-LD, `LodgingBusiness`): nombre, dirección, teléfono, amenities, rango de precio.
+- Open Graph y Twitter Card con imagen propia (no genérica) en todas las páginas.
+- Manifest web (PWA) con íconos reales.
+- **Pendiente, depende del dueño**: coordenadas GPS exactas para el dato estructurado (hoy solo hay dirección en texto) — necesita un link de Google Maps con el pin correcto.
+
 ---
 
 ## 2. Apu Gestion System (sistema interno)
@@ -96,6 +104,20 @@ Tres roles de usuario: **admin**, **recepción**, **limpieza** (housekeeper). Ca
 - Logo real (no un texto genérico) en el header, login y pantallas de carga.
 - Favicon e íconos de instalación (PWA) generados desde el logo real.
 
+### Enlaces a Booking.com
+- El sitio público (footer) y la página de links del QR de la tarjeta tienen ahora un link directo a la ficha real del hotel en Booking.com.
+- **No existe sincronización automática de disponibilidad** entre Booking.com y este sistema — Booking.com no abre su API de conectividad a sistemas hechos a medida, solo a Channel Managers certificados (SiteMinder, Cloudbeds, Hotelrunner, etc.). Hoy la única forma de evitar dobles reservas entre canales es reconciliar a mano: cuando entra una reserva por Booking.com, registrarla también en este sistema (y viceversa).
+
+### Seguridad (auditoría y fixes aplicados)
+Tras una revisión crítica del código encontrada con un análisis "abogado del diablo", se corrigieron 3 huecos reales:
+- **Límite de tasa (rate limit) llaveado a la IP equivocada**: detrás de Cloudflare + nginx, el límite por IP usaba la IP interna de nginx (la misma para todos los visitantes), volviéndose un balde compartido en vez de un límite por persona. Ahora lee `CF-Connecting-IP` / `X-Forwarded-For` para identificar al visitante real.
+- **Login sin límite de intentos**: se agregó un tope de 10 intentos/minuto por IP en `/auth/login` para frenar fuerza bruta.
+- **Formulario público de reserva sin validar el correo y sin protección anti-bot**: el correo ahora se valida con formato real (`EmailStr`), y se agregó un campo honeypot oculto — si un bot lo llena (los humanos nunca lo ven), la solicitud se descarta en silencio sin crear una reserva ni notificar a recepción.
+
+**Quedan pendientes, identificados pero diferidos a propósito** (ver sección 5, técnico):
+- Posible doble reserva por condición de carrera (sin lock ni constraint de base de datos a nivel `(cuarto, rango de fechas)`).
+- Cálculo de noches y señales de fecha (no-show, salida vencida) comparando fechas sin normalizar correctamente a la zona horaria de Perú (servidor corre en UTC, en un VPS en Alemania).
+
 ---
 
 ## 3. Decisiones de negocio confirmadas
@@ -107,22 +129,38 @@ Tres roles de usuario: **admin**, **recepción**, **limpieza** (housekeeper). Ca
 
 ---
 
-## 4. Estado técnico actual
+## 4. Estado técnico actual — EN PRODUCCIÓN
 
-- Todo corre **localmente en Docker** (Postgres, Redis, backend, frontend, nginx) — `docker compose up`.
-- Credenciales y secretos actuales son de desarrollo (`local_dev`), no aptos para producción.
-- Solo existe la cuenta de admin; faltan crear las cuentas reales de recepción y de cada housekeeper.
+El sistema está desplegado y en vivo, no solo en desarrollo local:
+
+- **Sitio público**: https://apu-garden-lodge.com — en vivo.
+- **Sistema de gestión**: https://gestion.apu-garden-lodge.com — en vivo.
+- **Infraestructura**: VPS Hetzner (CX23, Nuremberg) corriendo Docker Compose (Postgres, Redis, backend, frontend de gestión, sitio público, nginx). DNS y HTTPS gestionados por Cloudflare (proxy activado, modo SSL Flexible). Detalle completo del despliegue y de los problemas ya resueltos en el camino: ver [DEPLOY.md](DEPLOY.md).
+- Secretos de producción (contraseña de DB, JWT, admin) ya reemplazados — distintos de los de desarrollo local.
+- Migraciones de base de datos aplicadas en producción (Alembic) — base de datos arrancó vacía y limpia.
+- Existe la cuenta de admin (creada manualmente con `python -m app.seed`, ver DEPLOY.md — este paso no es automático).
+- **42 cuartos cargados** en producción (3 pisos × 14, con la misma distribución de tipos y frigobar activado en todos).
 - El catálogo de frigobar está vacío — listo para cargarse desde la app misma.
-- Migraciones de base de datos al día (Alembic).
+- El sitio público apunta a la API real de producción (`gestion.apu-garden-lodge.com/api`).
+- WebSocket de notificaciones en tiempo real verificado funcionando a través de Cloudflare en producción.
+- **Ciclo completo verificado en vivo contra producción** (no solo en desarrollo): reserva desde el sitio web → confirmar → check-in → cargo → folio (matemática de noches × tarifa + cargos confirmada exacta) → check-out (genera cargo de alojamiento, factura cargos aprobados, crea tarea de limpieza) → WebSocket recibiendo los eventos en tiempo real durante todo el proceso. Se usó una reserva claramente marcada como prueba y se limpió después (cargos anulados, cuarto repuesto a "disponible"); ver nota en sección 5 sobre el registro histórico que queda.
 
-## 5. Lo que falta para producción
+## 5. Lo que queda pendiente
 
-1. **VPS** — ya tienes el dominio en Cloudflare; falta el servidor donde correrá Docker Compose.
-2. Configurar DNS en Cloudflare apuntando al VPS, y HTTPS (certificado).
-3. Reemplazar todos los secretos de desarrollo por secretos reales (contraseña de DB, JWT, etc.).
-4. Crear las cuentas reales del personal.
-5. Cargar el catálogo real de frigobar.
-6. Configurar respaldos automáticos de la base de datos.
-7. Apuntar el sitio público (`Apu Garden Lodge Web`) a la URL real del backend en producción.
+### Operativo (lo hace el dueño/staff, sin tocar código)
+1. Crear las cuentas reales de recepción y de cada housekeeper (admin → Usuarios) — hoy solo existe el admin.
+2. Cargar el catálogo real de frigobar (productos y precios).
+3. Cambiar la contraseña del admin (la actual es una generada al azar para el primer acceso).
+4. Confirmar un correo de contacto real — todavía no existe uno; se quitó del sitio hasta que lo haya.
+5. Coordenadas GPS exactas del lodge (hoy el mapa usa la dirección en texto).
+6. Crear/completar el perfil de **Google Business Profile** — el paso más importante para aparecer en búsquedas de "hotel Urubamba" / "hotel Cusco", y es 100% gestión del dueño, no código.
+7. Reconciliación manual con Booking.com (ver sección de Booking.com arriba) — no hay forma de automatizarla sin contratar un Channel Manager de pago.
 
-Cuando tengas el VPS, podemos armar la guía paso a paso de despliegue.
+### Técnico
+1. **Respaldos automáticos de la base de datos — no configurados aún.** Hoy si el VPS falla, se pierde todo. El script ya existe (`scripts/backup.sh`), solo falta agregarlo al cron del servidor. Ver DEPLOY.md, sección "Respaldo de la base de datos". Es la tarea técnica más urgente.
+2. **Confirmar el Cloud Firewall de Hetzner** — nunca se confirmó si está creado y adjuntado al servidor (es una capa de red separada del firewall ufw del sistema, que sí está activo).
+3. El modo SSL "Flexible" de Cloudflare deja el tramo Cloudflare↔servidor sin cifrar (aceptable para este tamaño de proyecto). Si más adelante se quiere cerrar del todo, hay que instalar un certificado de origen y pasar a "Full (strict)".
+4. **Posible doble reserva por condición de carrera**: dos solicitudes simultáneas por el último cuarto de un tipo podrían, en teoría, crear dos reservas que se cruzan — no hay un `EXCLUDE` constraint de Postgres protegiendo esto a nivel de base de datos. Probabilidad baja al volumen actual, impacto alto si pasa. Diferido a propósito.
+5. **Zona horaria**: el servidor corre en UTC (VPS en Alemania) pero el hotel opera en hora de Perú (UTC-5); el cálculo de noches y las señales de "no-show"/"salida vencida" pueden desviarse unas horas en los bordes del día. Diferido a propósito.
+6. Queda un registro de prueba en el sistema por la verificación end-to-end de hoy: una reserva "PRUEBA SISTEMA (borrar)" marcada como `checked_out` (no se puede borrar reservas, solo cancelar las pendientes) y una tarea de limpieza pendiente sin cerrar para el cuarto 106 (se necesita una cuenta con rol "limpieza", que todavía no existe, para completarla formalmente). Ninguno de los dos afecta reportes ni disponibilidad.
+7. Mejoras visuales/contenido adicionales al sitio público (pendiente de indicaciones específicas del dueño).

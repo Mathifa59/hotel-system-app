@@ -7,11 +7,14 @@ from app.deps import get_current_user
 from app.models.user import User
 from app.schemas.auth import LoginRequest, TokenResponse
 from app.schemas.user import UserOut
+from app.services.rate_limit import rate_limit
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/login", response_model=TokenResponse)
+# Tope por IP para frenar fuerza bruta / credential-stuffing. 10/min deja
+# margen para que alguien se equivoque de contraseña varias veces sin trabarse.
+@router.post("/login", response_model=TokenResponse, dependencies=[Depends(rate_limit(10))])
 def login(data: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == data.email).first()
     if user is None or not user.is_active or not verify_password(data.password, user.password_hash):

@@ -51,6 +51,11 @@ def create_booking_request(
     data: BookingRequestCreate,
     db: Session = Depends(get_db),
 ):
+    # Honeypot: si el campo oculto viene lleno, es un bot. Respondemos 400
+    # genérico sin crear nada ni notificar a recepción.
+    if data.company:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Solicitud inválida")
+
     if data.check_out <= data.check_in:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="check_out debe ser posterior a check_in")
 

@@ -1,117 +1,141 @@
 # Despliegue a producción
 
-## Lo que necesitas
+## Cómo está desplegado hoy (referencia real)
 
-- Un VPS con Docker instalado (Ubuntu 22.04+ recomendado). Opciones baratas que funcionan bien: DigitalOcean, Hetzner, Contabo — cualquiera con 2GB de RAM alcanza para este sistema.
-- Un dominio o subdominio (ej. `gestion.tuhotel.com`) con acceso a su DNS.
-- Acceso por SSH al servidor.
-
-Vercel **no sirve para esto** — solo aloja el frontend Next.js, no Postgres/Redis/FastAPI con WebSockets. Por eso todo va junto en un VPS con Docker Compose, igual que en desarrollo.
+- **VPS**: Hetzner Cloud, plan CX23, datacenter Nuremberg (Alemania).
+- **Dominio**: `apu-garden-lodge.com`, DNS y proxy en **Cloudflare**.
+- **HTTPS**: lo maneja Cloudflare (modo **Flexible**) — el origen (el VPS) solo sirve HTTP plano en el puerto 80, sin certificado propio que mantener ni renovar.
+- **Reverse proxy en el origen**: nginx (no Caddy) — un solo contenedor que enruta por dominio a cada servicio:
+  - `apu-garden-lodge.com` → contenedor `web` (sitio público, Next.js)
+  - `gestion.apu-garden-lodge.com` → contenedores `frontend` (Next.js de gestión) y `backend` (FastAPI, bajo `/api`) y el WebSocket bajo `/ws`
+- **Dos repos**, clonados como hermanos en el mismo servidor:
+  ```
+  ~/apu-gestion-system/        ← este repo (backend + frontend de gestión + nginx + compose)
+  ~/apu-garden-lodge-web/      ← sitio público (repo hermano)
+  ```
+  `docker-compose.prod.yml` referencia `../apu-garden-lodge-web` directamente, así que **los dos repos deben estar en el mismo nivel** en el servidor.
+- **Usuario del servidor**: `deploy` (no root), con acceso SSH por llave.
 
 ## 1. Apuntar el dominio
 
-En el proveedor de DNS donde administras tu dominio, crea un registro:
+En Cloudflare (o el proveedor DNS que uses), registros tipo A apuntando a la IP del VPS:
 
 ```
-Tipo: A
-Nombre: gestion (o el subdominio que quieras)
-Valor: <IP pública del VPS>
+apu-garden-lodge.com           → IP del VPS
+gestion.apu-garden-lodge.com   → IP del VPS
 ```
 
-Espera unos minutos a que propague. Verifica con `ping gestion.tuhotel.com` desde tu compu — debe responder con la IP del servidor.
+Si usas Cloudflare con el proxy naranja activado (recomendado, da HTTPS gratis y oculta la IP real):
+
+- **SSL/TLS → Overview → modo "Flexible"** — esto es obligatorio con la configuración actual del origen (nginx solo en HTTP). Si lo dejas en "Full" o "Full (strict)", Cloudflare no podrá conectarse al origen y vas a ver error 521 en todo el sitio.
 
 ## 2. Preparar el servidor
 
 ```bash
-ssh root@<ip-del-servidor>
+ssh deploy@<ip-o-host>
 
 # Instalar Docker (Ubuntu)
 curl -fsSL https://get.docker.com | sh
 
-# Clonar o subir el código
-git clone <tu-repo> hotel-system   # o sube la carpeta por scp/rsync
-cd hotel-system
+# Clonar los DOS repos al mismo nivel
+git clone <repo-gestion> apu-gestion-system
+git clone <repo-web> apu-garden-lodge-web
 ```
+
+### Firewall
+
+```bash
+sudo ufw allow OpenSSH
+sudo ufw allow 80
+sudo ufw allow 443
+sudo ufw enable
+```
+
+Además del firewall del sistema (ufw), Hetzner ofrece un **Cloud Firewall** aparte a nivel de red, configurable desde su consola web — **no se ha confirmado si está creado y adjuntado al servidor**. Vale la pena revisarlo: es una capa extra independiente de ufw.
 
 ## 3. Configurar `.env`
 
 ```bash
+cd apu-gestion-system
 cp .env.example .env
 nano .env
 ```
 
-Cambia **todo lo que diga "change_me"**: `POSTGRES_PASSWORD`, `JWT_SECRET` (usa algo largo y random, ej. `openssl rand -hex 32`), `ADMIN_PASSWORD`. Pon tu dominio real en `DOMAIN`. `DATABASE_URL` debe usar la misma contraseña que pusiste en `POSTGRES_PASSWORD`.
+Cambia todo lo que diga `change_me`: `POSTGRES_PASSWORD`, `JWT_SECRET` (`openssl rand -hex 32`), `ADMIN_EMAIL`, `ADMIN_PASSWORD`. `DATABASE_URL` debe usar la misma contraseña que `POSTGRES_PASSWORD`. El campo `DOMAIN` de este `.env.example` es vestigio de un enfoque con Caddy que **ya no se usa** — con nginx + Cloudflare no hace falta.
 
-## 4. Abrir los puertos del firewall
-
-```bash
-ufw allow 80
-ufw allow 443
-ufw allow OpenSSH
-ufw enable
-```
-
-## 5. Levantar todo
+## 4. Levantar todo
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+nohup docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build > deploy.log 2>&1 &
+disown
 ```
 
-Esto construye el frontend en modo producción (`next build`, sin hot-reload) y levanta Caddy, que automáticamente pide y renueva el certificado HTTPS de Let's Encrypt para el dominio que pusiste en `DOMAIN` — no hay que hacer nada manual con certificados.
+**Importante:** el build de los dos frontends Next.js (gestión + sitio público) tarda varios minutos. Si lo corres directo sobre una sesión SSH sin `nohup`/`disown`, al cerrar la terminal el proceso recibe SIGHUP y el build se corta a medias — pasó en el primer despliegue. Usa siempre `nohup ... & disown` (o `tmux`/`screen`) para que sobreviva a la desconexión, y verifica con `tail -f deploy.log` y `docker compose ... ps` antes de asumir que terminó.
 
-## 6. Migraciones + admin inicial
+## 5. Migraciones + admin inicial
 
 ```bash
-docker compose exec backend alembic upgrade head
-docker compose exec backend python -m app.seed
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec backend alembic upgrade head
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec backend python -m app.seed
 ```
 
-Esto crea las tablas y el primer usuario admin (con el correo/contraseña que pusiste en `.env`). Desde ahí, ese admin entra a `https://gestion.tuhotel.com/admin/usuarios` y crea las cuentas de recepción y limpieza.
+**El segundo comando NO es opcional ni automático** — `seed_admin()` solo se ejecuta si corres `app.seed` a mano (no se llama desde `main.py` al iniciar). Sin este paso no existe ningún usuario y el login devuelve 401 aunque el resto del stack esté sano. Es un paso único, no hace falta repetirlo en despliegues futuros (el script detecta si el admin ya existe).
 
-## 7. Verificar
+## 6. Verificar
 
-Abre `https://gestion.tuhotel.com/login` en el navegador — debe cargar con el candado de HTTPS válido.
+```bash
+curl -I https://apu-garden-lodge.com
+curl -I https://gestion.apu-garden-lodge.com
+```
+
+Ambos deben responder `200`. Si da `521`, revisa el modo SSL de Cloudflare (paso 1).
+
+## Gotcha: Cloudflare bloquea el User-Agent por defecto de scripts
+
+Si vas a llamar a la API en producción con un script (Python `urllib`, etc.) en vez de desde el navegador, agrega un `User-Agent` que no sea el genérico de la librería:
+
+```python
+headers={"User-Agent": "Mozilla/5.0 (compatible; ApuGardenLodgeSetup/1.0)"}
+```
+
+Cloudflare devuelve `403 Forbidden` a requests con user-agents reconocidos como bots/scripts (ej. `Python-urllib/3.x`), incluso con credenciales correctas. `curl` no tiene este problema salvo que también se le quite el user-agent por defecto.
 
 ## Actualizar el sistema después
 
 ```bash
-git pull   # o sube el código nuevo
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-docker compose exec backend alembic upgrade head   # solo si hay migraciones nuevas
+cd apu-gestion-system && git pull
+cd ../apu-garden-lodge-web && git pull
+cd ../apu-gestion-system
+nohup docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build > deploy.log 2>&1 &
+disown
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec backend alembic upgrade head   # solo si hay migraciones nuevas
 ```
 
 ## Respaldo de la base de datos
 
-PostgreSQL guarda todo en un volumen Docker (`pg_data`) que sobrevive a reinicios y actualizaciones, pero **no a un disco dañado ni a un borrado accidental**. Por eso el respaldo es imprescindible antes de tener huéspedes reales.
+**Estado actual: NO configurado.** El repo incluye `scripts/backup.sh` (dump comprimido con rotación de 14 días) pero **no está agregado al cron del servidor** — hoy, si el disco del VPS falla, se pierde toda la base de datos de producción (reservas, cargos, usuarios, los 42 cuartos). Esto es la tarea técnica pendiente más importante.
 
-### Respaldo automático (recomendado)
-
-El repo incluye `scripts/backup.sh`, que genera un dump comprimido con fecha y conserva solo los últimos 14 días (rotación automática). Pruébalo a mano una vez:
+Para activarlo:
 
 ```bash
-./scripts/backup.sh
-# → backups/apu_hotel_2026-06-23_030000.sql.gz
+ssh deploy@<servidor>
+crontab -e
 ```
-
-Para que corra solo cada día, agrégalo al cron del servidor con `crontab -e`:
 
 ```cron
-# Respaldo de Apu Gestión todos los días a las 3:00 AM
-0 3 * * * /ruta/a/hotel-system/scripts/backup.sh >> /ruta/a/hotel-system/backups/backup.log 2>&1
+0 3 * * * /home/deploy/apu-gestion-system/scripts/backup.sh >> /home/deploy/apu-gestion-system/backups/backup.log 2>&1
 ```
 
-Ajustes opcionales por variables de entorno: `RETENTION_DAYS` (días a conservar, 14 por defecto) y `BACKUP_DIR` (carpeta destino).
-
-> **Importante:** los respaldos quedan en el mismo servidor. Para protección real ante un disco dañado, copia la carpeta `backups/` a otro lugar (otro disco, un bucket S3/Backblaze, o `rsync` a otra máquina) — un segundo paso aparte, no hace falta tocar el script.
+Y, como segundo paso (no lo hace el script), copiar `backups/` fuera del servidor — otro disco, un bucket S3/Backblaze, o `rsync` a otra máquina — para que un respaldo en el mismo VPS no sea el único respaldo.
 
 ### Restaurar un respaldo
 
 ```bash
-gunzip -c backups/apu_hotel_FECHA.sql.gz | docker compose exec -T db psql -U hotel -d hotel
+gunzip -c backups/apu_hotel_FECHA.sql.gz | docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T db psql -U hotel -d hotel
 ```
 
-### Respaldo manual rápido (alternativa)
+### Respaldo manual rápido
 
 ```bash
-docker compose exec db pg_dump -U hotel hotel > respaldo-$(date +%F).sql
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec db pg_dump -U hotel hotel > respaldo-$(date +%F).sql
 ```
