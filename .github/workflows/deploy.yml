@@ -1,0 +1,35 @@
+name: Deploy a producción
+
+# Cada push a main entra al VPS por SSH y corre deploy.sh (que hace
+# git pull de ambos repos + rebuild + migraciones). Así el servidor queda
+# SIEMPRE sincronizado con GitHub, automáticamente.
+#
+# Requiere 3 secretos en este repo (Settings -> Secrets and variables ->
+# Actions -> New repository secret):
+#   VPS_HOST     -> 188.34.202.143
+#   VPS_USER     -> deploy
+#   VPS_SSH_KEY  -> la llave privada del par de despliegue (ver guía)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {} # permite dispararlo a mano desde la pestaña Actions
+
+# Evita que dos despliegues corran a la vez (p. ej. si pusheas a ambos repos
+# casi al mismo tiempo) y choquen al reconstruir Docker.
+concurrency:
+  group: deploy-produccion
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Desplegar por SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 20m
+          script: cd ~/apu-gestion-system && bash deploy.sh
