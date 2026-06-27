@@ -18,6 +18,16 @@
 #
 set -euo pipefail
 
+# Candado de despliegue. Si dos despliegues coinciden (GitHub Actions dispara
+# el workflow de AMBOS repos casi al mismo tiempo cuando pusheas a los dos),
+# el segundo espera a que el primero termine, en vez de chocar al hacer
+# `git pull` / rebuild simultáneos. El control de concurrencia de GitHub
+# Actions es por-repositorio y no coordina entre repos distintos, así que el
+# candado tiene que vivir aquí, en el servidor.
+exec 9>/tmp/apu-deploy.lock
+echo "==> Tomando el candado de despliegue (espera si hay otro deploy en curso)..."
+flock 9
+
 GESTION_DIR="$HOME/apu-gestion-system"
 WEB_DIR="$HOME/apu-garden-lodge-web"
 COMPOSE=(docker compose -f docker-compose.yml -f docker-compose.prod.yml)

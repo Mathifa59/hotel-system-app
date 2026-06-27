@@ -41,6 +41,12 @@ backups/
 *.dump
 *.sqlite3
 
+# ───── Despliegue ─────
+# Logs generados en el servidor por deploy.sh / nohup. No deben versionarse
+# (y si no se ignoran, un git pull podría chocar con ellos como "untracked").
+*.log
+deploy_*.log
+
 # ───── Sistema operativo / editor ─────
 .DS_Store
 Thumbs.db
