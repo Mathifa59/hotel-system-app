@@ -113,6 +113,10 @@ export default function ReservationsPage() {
       <div className="space-y-2">
         {reservations
           .filter((r) => r.confirmed || r.status !== "pending" || r.source !== "website")
+          // Una vez con check-out o cancelada, la reserva ya no es algo sobre
+          // lo que recepción tenga que actuar — queda en el historial del
+          // cuarto, no aquí, para no acumular filas muertas en esta lista.
+          .filter((r) => r.status !== "checked_out" && r.status !== "cancelled")
           .map((r) => (
           <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-warm bg-surface p-4">
             <div>

@@ -79,7 +79,7 @@ def update_room(
     room_id: uuid.UUID,
     data: RoomUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.admin, UserRole.cleaning)),
+    current_user: User = Depends(require_role(UserRole.admin, UserRole.reception)),
 ):
     room = db.get(Room, room_id)
     if room is None:

@@ -83,6 +83,7 @@ export default function ReceptionRoomsPage() {
           room={selected}
           token={token}
           canEditStatus
+          canEditInfo
           canManageMinibar
           onClose={() => setSelected(null)}
           onUpdated={(updated) => {

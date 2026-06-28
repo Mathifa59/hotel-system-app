@@ -20,6 +20,7 @@ import type {
   CleaningRequest,
   CleaningRequestType,
   MinibarProduct,
+  Reservation,
   Room,
   RoomHistory,
   RoomStatus,
@@ -449,17 +450,51 @@ function MinibarManager({ room, token }: { room: Room; token: string }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Para registrar consumo (no solo cargar stock nuevo) hace falta saber a
+  // qué reserva cargarlo — se toma la más reciente de este cuarto, igual que
+  // en el flujo de "Mis tareas".
+  const [reservationId, setReservationId] = useState<string | null>(null);
+  const [consumeQty, setConsumeQty] = useState<Record<string, number>>({});
+  const [consumeMessage, setConsumeMessage] = useState<string | null>(null);
+  const [consumingNow, setConsumingNow] = useState(false);
+
   useEffect(() => {
     Promise.all([
       api.get<MinibarProduct[]>("/minibar/products", token),
       api.get<StockItem[]>(`/minibar/stock?room_id=${room.id}`, token),
+      api.get<Reservation[]>(`/reservations?room_id=${room.id}`, token),
     ])
-      .then(([p, s]) => {
+      .then(([p, s, reservations]) => {
         setProducts(p);
         setStock(s);
+        setReservationId(reservations[0]?.id ?? null);
       })
       .finally(() => setLoading(false));
   }, [room.id, token]);
+
+  function setConsumeQuantity(productId: string, value: number, max: number) {
+    setConsumeQty((prev) => ({ ...prev, [productId]: Math.max(0, Math.min(max, value)) }));
+  }
+
+  async function registerConsumption() {
+    if (!reservationId) return;
+    const items = Object.entries(consumeQty)
+      .filter(([, q]) => q > 0)
+      .map(([product_id, quantity]) => ({ product_id, quantity }));
+    if (items.length === 0) return;
+    setConsumingNow(true);
+    setConsumeMessage(null);
+    try {
+      await api.post("/minibar/consumptions", { room_id: room.id, reservation_id: reservationId, items }, token);
+      setConsumeMessage("Consumo registrado.");
+      setConsumeQty({});
+      setStock(await api.get<StockItem[]>(`/minibar/stock?room_id=${room.id}`, token));
+    } catch {
+      setConsumeMessage("No se pudo registrar el consumo.");
+    } finally {
+      setConsumingNow(false);
+    }
+  }
 
   async function addOrRestock() {
     const trimmedName = name.trim();
@@ -503,23 +538,69 @@ function MinibarManager({ room, token }: { room: Room; token: string }) {
       {loading ? (
         <p className="text-sm text-parchment-dim">Cargando…</p>
       ) : (
-        <div className="mb-3 space-y-1.5">
+        <div className="mb-2 space-y-1.5">
           {stock.length === 0 && <p className="text-sm text-parchment-dim">Sin productos cargados todavía.</p>}
           {stock.map((s) => {
             const product = products.find((p) => p.id === s.product_id);
             if (!product) return null;
             return (
-              <div key={s.id} className="flex items-center justify-between text-sm">
-                <span className="text-parchment">{product.name}</span>
-                <span className="text-parchment-dim">
-                  {s.quantity} u. · {formatMoney({ pen: product.price_pen, usd: product.price_usd }, currency)}
-                </span>
+              <div key={s.id} className="flex items-center justify-between gap-3 text-sm">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-parchment">{product.name}</p>
+                  <p className="text-[11px] text-parchment-dim">
+                    {s.quantity} u. · {formatMoney({ pen: product.price_pen, usd: product.price_usd }, currency)}
+                  </p>
+                </div>
+                {/* Contador para marcar cuánto consumió el huésped — antes
+                    solo se podía agregar stock nuevo, no registrar consumo,
+                    desde el mapa de cuartos. */}
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setConsumeQuantity(s.product_id, (consumeQty[s.product_id] ?? 0) - 1, s.quantity)}
+                    className="h-7 w-7 rounded-lg border border-border-warm text-parchment-dim transition hover:border-brass/40 hover:text-brass"
+                  >
+                    −
+                  </button>
+                  <span className="w-5 text-center font-data text-xs text-parchment">
+                    {consumeQty[s.product_id] ?? 0}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setConsumeQuantity(s.product_id, (consumeQty[s.product_id] ?? 0) + 1, s.quantity)}
+                    disabled={s.quantity === 0}
+                    className="h-7 w-7 rounded-lg border border-border-warm text-parchment-dim transition hover:border-brass/40 hover:text-brass disabled:opacity-30"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
             );
           })}
         </div>
       )}
 
+      {stock.length > 0 && (
+        <>
+          {!reservationId && (
+            <p className="mb-2 text-[11px] text-room-maintenance">
+              No se encontró una reserva reciente — no se puede registrar consumo todavía.
+            </p>
+          )}
+          {consumeMessage && <p className="mb-2 text-[11px] text-room-available">{consumeMessage}</p>}
+          <button
+            onClick={registerConsumption}
+            disabled={!reservationId || consumingNow || Object.values(consumeQty).every((q) => !q)}
+            className="mb-4 w-full rounded-lg bg-brass py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
+          >
+            {consumingNow ? "Registrando…" : "Registrar consumo"}
+          </button>
+        </>
+      )}
+
+      <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-parchment-dim/70">
+        Agregar producto / reabastecer
+      </p>
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}

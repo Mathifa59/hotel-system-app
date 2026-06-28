@@ -68,7 +68,6 @@ export default function CleaningRoomsPage() {
           room={selected}
           token={token}
           canEditStatus={false}
-          canEditInfo
           canManageMinibar
           onClose={() => setSelected(null)}
           onUpdated={(updated) => {
