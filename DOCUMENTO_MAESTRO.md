@@ -160,7 +160,7 @@ El script [`deploy.sh`](deploy.sh) hace, en el servidor: `git pull` de ambos rep
 
 - PostgreSQL 16, datos en un volumen Docker (`pg_data`) que sobrevive reinicios/actualizaciones — **pero no a un disco dañado ni a un borrado.**
 - Migraciones con Alembic (`backend/alembic/versions/`). Se aplican con `alembic upgrade head` (el `deploy.sh` ya lo hace).
-- **Cargar los 42 cuartos**: ya hechos en producción (3 pisos × 14, con la distribución de tipos y frigobar). Si recreas la base, hay que recargarlos.
+- **Cargar los 14 cuartos reales**: ya hechos en producción (piso 1: 101-104, piso 2: 201-205, piso 3: 301-305, con la distribución de tipos y frigobar). Si recreas la base, hay que recargarlos.
 
 ---
 

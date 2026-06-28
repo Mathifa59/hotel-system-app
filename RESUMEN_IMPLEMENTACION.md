@@ -50,7 +50,7 @@ Este documento resume todo lo construido hasta ahora en los dos proyectos:
 Tres roles de usuario: **admin**, **recepción**, **limpieza** (housekeeper). Cada uno tiene su propio panel y permisos.
 
 ### Cuartos
-- 42 cuartos cargados (3 pisos × 14), repartidos entre los 5 tipos reales.
+- **14 cuartos reales** cargados: piso 1 (101-104, 4 cuartos), piso 2 (201-205, 5 cuartos), piso 3 (301-305, 5 cuartos) — repartidos entre los 5 tipos reales, todos con frigobar activado.
 - Edición de número, piso, tipo y si tiene frigobar — disponible para admin y housekeeper.
 - Mapa de cuartos con estado en vivo (Disponible / Ocupado / En limpieza / Limpio / Mantenimiento / No molestar).
 - Botón **"Marcar disponible para nuevo huésped"** cuando un cuarto queda "Limpio", para no olvidar liberarlo.
@@ -139,7 +139,7 @@ El sistema está desplegado y en vivo, no solo en desarrollo local:
 - Secretos de producción (contraseña de DB, JWT, admin) ya reemplazados — distintos de los de desarrollo local.
 - Migraciones de base de datos aplicadas en producción (Alembic) — base de datos arrancó vacía y limpia.
 - Existe la cuenta de admin (creada manualmente con `python -m app.seed`, ver DEPLOY.md — este paso no es automático).
-- **42 cuartos cargados** en producción (3 pisos × 14, con la misma distribución de tipos y frigobar activado en todos).
+- **14 cuartos reales cargados** en producción (piso 1: 101-104, piso 2: 201-205, piso 3: 301-305), con frigobar activado en todos.
 - El catálogo de frigobar está vacío — listo para cargarse desde la app misma.
 - El sitio público apunta a la API real de producción (`gestion.apu-garden-lodge.com/api`).
 - WebSocket de notificaciones en tiempo real verificado funcionando a través de Cloudflare en producción.
