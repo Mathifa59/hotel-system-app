@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.deps import get_current_user, require_role
 from app.models.activity_log import ActivityLog
+from app.models.charge import Charge
 from app.models.cleaning_request import CleaningRequest
 from app.models.enums import RoomType, UserRole
 from app.models.reservation import Reservation
@@ -161,6 +162,14 @@ def room_history(
         .order_by(CleaningRequest.created_at.desc())
         .all()
     )
+    charges = (
+        db.query(Charge)
+        .filter(Charge.reservation_id.in_([r.id for r in reservations]))
+        .order_by(Charge.created_at.desc())
+        .all()
+        if reservations
+        else []
+    )
     activity_rows = (
         db.query(ActivityLog, User.name)
         .outerjoin(User, User.id == ActivityLog.user_id)
@@ -173,4 +182,4 @@ def room_history(
         for log, actor_name in activity_rows
     ]
 
-    return RoomHistory(reservations=reservations, cleaning_requests=cleaning_requests, activity=activity)
+    return RoomHistory(reservations=reservations, cleaning_requests=cleaning_requests, charges=charges, activity=activity)

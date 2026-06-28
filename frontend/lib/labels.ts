@@ -3,6 +3,7 @@ import type {
   ChargeType,
   CleaningRequestStatus,
   CleaningRequestType,
+  PaymentMethod,
   ReservationStatus,
   Role,
   RoomStatus,
@@ -77,6 +78,12 @@ export const reservationStatusLabel: Record<ReservationStatus, string> = {
   active: "Activa",
   checked_out: "Check-out",
   cancelled: "Cancelada",
+};
+
+export const paymentMethodLabel: Record<PaymentMethod, string> = {
+  cash: "Efectivo",
+  card: "Tarjeta",
+  transfer: "Transferencia",
 };
 
 export function formatMoney(amounts: { pen: string | number; usd: string | number }, currency: Currency): string {

@@ -3,8 +3,29 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useCurrency } from "@/lib/currency";
-import { cleaningStatusLabel, cleaningTypeLabel, formatDateTime, formatMoney, reservationStatusLabel, roomStatusLabel, roomTypeLabel } from "@/lib/labels";
-import type { ActivityLogEntry, CleaningRequest, CleaningRequestType, MinibarProduct, Room, RoomHistory, RoomStatus, RoomType, StockItem } from "@/lib/types";
+import {
+  chargeStatusLabel,
+  chargeTypeLabel,
+  cleaningStatusLabel,
+  cleaningTypeLabel,
+  formatDateTime,
+  formatMoney,
+  paymentMethodLabel,
+  reservationStatusLabel,
+  roomStatusLabel,
+  roomTypeLabel,
+} from "@/lib/labels";
+import type {
+  ActivityLogEntry,
+  CleaningRequest,
+  CleaningRequestType,
+  MinibarProduct,
+  Room,
+  RoomHistory,
+  RoomStatus,
+  RoomType,
+  StockItem,
+} from "@/lib/types";
 import { Modal } from "./Modal";
 import { RoomBadge } from "./RoomBadge";
 
@@ -45,6 +66,17 @@ function activityLabel(a: ActivityLogEntry): string {
       const quantity = a.meta?.quantity as number | undefined;
       return product ? `Cargó frigobar: ${product} (${quantity ?? "?"} u.)` : "Actualizó el stock de frigobar";
     }
+    case "checkout.billed": {
+      const nights = a.meta?.nights as number | undefined;
+      return nights ? `Check-out facturado — ${nights} noche(s)` : "Check-out facturado";
+    }
+    case "reservation.paid": {
+      const method = a.meta?.method as string | undefined;
+      const amountPen = a.meta?.amount_pen as string | undefined;
+      return method
+        ? `Pago registrado (${paymentMethodLabel[method as keyof typeof paymentMethodLabel]}) — S/ ${amountPen}`
+        : "Pago registrado";
+    }
     default:
       return "Actualización del cuarto";
   }
@@ -59,12 +91,26 @@ function buildTimeline(history: RoomHistory): TimelineItem[] {
       label: `Reserva — ${r.guest_name}${r.guest_id_document ? ` (ID ${r.guest_id_document})` : ""}`,
       detail: `${reservationStatusLabel[r.status]} · ${formatDateTime(r.check_in)} → ${formatDateTime(r.check_out)}`,
     });
+    if (r.paid_at && r.payment_method) {
+      items.push({
+        date: r.paid_at,
+        label: `Pago de ${r.guest_name} — ${paymentMethodLabel[r.payment_method]}`,
+        detail: `S/ ${r.payment_amount_pen} · $ ${r.payment_amount_usd}`,
+      });
+    }
   }
   for (const c of history.cleaning_requests) {
     items.push({
       date: c.created_at,
       label: `Limpieza — ${cleaningTypeLabel[c.request_type]}`,
       detail: cleaningStatusLabel[c.status],
+    });
+  }
+  for (const c of history.charges) {
+    items.push({
+      date: c.created_at,
+      label: `Cargo — ${c.description}`,
+      detail: `${chargeTypeLabel[c.type]} · ${chargeStatusLabel[c.status]} · S/ ${c.amount_pen}`,
     });
   }
   for (const a of history.activity) {
@@ -189,7 +235,7 @@ export function RoomDetailModal({
   }
 
   return (
-    <Modal title={`Cuarto ${room.number}`} onClose={onClose}>
+    <Modal title={`Cuarto ${room.number}`} onClose={onClose} wide>
       <div className="mb-5 flex items-center justify-between">
         <p className="text-sm text-parchment-dim">{roomTypeLabel[room.type]}</p>
         <RoomBadge status={room.status} />
@@ -207,157 +253,169 @@ export function RoomDetailModal({
         </button>
       )}
 
-      {canEditInfo && (
-        <div className="mb-5 border-b border-border-warm/50 pb-5">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-xs font-medium uppercase tracking-wide text-parchment-dim">Número, piso y tipo</p>
-            {!editingInfo && (
-              <button
-                onClick={() => setEditingInfo(true)}
-                className="text-xs font-medium text-brass transition hover:text-brass-bright"
-              >
-                Editar
-              </button>
-            )}
-          </div>
-
-          {editingInfo ? (
+      <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+        {/* ───── Columna izquierda: identidad y estado del cuarto ───── */}
+        <div className="space-y-5">
+          {canEditInfo && (
             <div>
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  value={number}
-                  onChange={(e) => setNumber(e.target.value)}
-                  placeholder="Número"
-                  className="rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
-                />
-                <input
-                  type="number"
-                  value={floor}
-                  onChange={(e) => setFloor(Number(e.target.value))}
-                  placeholder="Piso"
-                  className="rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
-                />
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-medium uppercase tracking-wide text-parchment-dim">Número, piso y tipo</p>
+                {!editingInfo && (
+                  <button
+                    onClick={() => setEditingInfo(true)}
+                    className="text-xs font-medium text-brass transition hover:text-brass-bright"
+                  >
+                    Editar
+                  </button>
+                )}
               </div>
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value as RoomType)}
-                className="mt-2 w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
-              >
-                {ROOM_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {roomTypeLabel[t]}
-                  </option>
+
+              {editingInfo ? (
+                <div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      value={number}
+                      onChange={(e) => setNumber(e.target.value)}
+                      placeholder="Número"
+                      className="rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
+                    />
+                    <input
+                      type="number"
+                      value={floor}
+                      onChange={(e) => setFloor(Number(e.target.value))}
+                      placeholder="Piso"
+                      className="rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
+                    />
+                  </div>
+                  <select
+                    value={type}
+                    onChange={(e) => setType(e.target.value as RoomType)}
+                    className="mt-2 w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
+                  >
+                    {ROOM_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {roomTypeLabel[t]}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="mt-2 flex items-center gap-2 text-sm text-parchment-dim">
+                    <input
+                      type="checkbox"
+                      checked={hasMinibar}
+                      onChange={(e) => setHasMinibar(e.target.checked)}
+                      className="accent-brass"
+                    />
+                    Tiene frigobar
+                  </label>
+                  {infoError && <p className="mt-2 text-sm text-room-maintenance">{infoError}</p>}
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      onClick={() => {
+                        setEditingInfo(false);
+                        setNumber(room.number);
+                        setFloor(room.floor);
+                        setType(room.type);
+                        setHasMinibar(room.has_minibar);
+                        setInfoError(null);
+                      }}
+                      className="flex-1 rounded-lg border border-border-warm py-2 text-sm font-medium text-parchment-dim transition hover:text-parchment"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={saveInfo}
+                      disabled={savingInfo || !number}
+                      className="flex-1 rounded-lg bg-brass py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
+                    >
+                      {savingInfo ? "Guardando…" : "Guardar"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-parchment">
+                  Cuarto {room.number} · Piso {room.floor}
+                  {room.has_minibar ? " · Con frigobar" : ""}
+                </p>
+              )}
+            </div>
+          )}
+
+          {canEditStatus && (
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-parchment-dim">Cambiar estado</p>
+              <div className="flex flex-wrap gap-2">
+                {STATUSES.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => changeStatus(s)}
+                    disabled={s === room.status}
+                    className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
+                      s === room.status
+                        ? "border-brass/50 bg-brass/15 text-brass"
+                        : "border-border-warm text-parchment-dim hover:border-brass/40 hover:text-parchment"
+                    }`}
+                  >
+                    {roomStatusLabel[s]}
+                  </button>
                 ))}
-              </select>
-              <label className="mt-2 flex items-center gap-2 text-sm text-parchment-dim">
-                <input
-                  type="checkbox"
-                  checked={hasMinibar}
-                  onChange={(e) => setHasMinibar(e.target.checked)}
-                  className="accent-brass"
-                />
-                Tiene frigobar
-              </label>
-              {infoError && <p className="mt-2 text-sm text-room-maintenance">{infoError}</p>}
-              <div className="mt-3 flex gap-2">
-                <button
-                  onClick={() => {
-                    setEditingInfo(false);
-                    setNumber(room.number);
-                    setFloor(room.floor);
-                    setType(room.type);
-                    setHasMinibar(room.has_minibar);
-                    setInfoError(null);
-                  }}
-                  className="flex-1 rounded-lg border border-border-warm py-2 text-sm font-medium text-parchment-dim transition hover:text-parchment"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={saveInfo}
-                  disabled={savingInfo || !number}
-                  className="flex-1 rounded-lg bg-brass py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
-                >
-                  {savingInfo ? "Guardando…" : "Guardar"}
-                </button>
               </div>
             </div>
-          ) : (
-            <p className="text-sm text-parchment">
-              Cuarto {room.number} · Piso {room.floor}
-              {room.has_minibar ? " · Con frigobar" : ""}
-            </p>
           )}
         </div>
-      )}
 
-      {canManageMinibar && room.has_minibar && <MinibarManager room={room} token={token} />}
+        {/* ───── Columna derecha: frigobar + solicitar limpieza ───── */}
+        <div className="space-y-5 sm:border-l sm:border-border-warm/50 sm:pl-8">
+          {canManageMinibar && room.has_minibar && <MinibarManager room={room} token={token} />}
 
-      {canEditStatus && (
-        <div className="mb-5">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-parchment-dim">Cambiar estado</p>
-          <div className="flex flex-wrap gap-2">
-            {STATUSES.map((s) => (
-              <button
-                key={s}
-                onClick={() => changeStatus(s)}
-                disabled={s === room.status}
-                className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
-                  s === room.status
-                    ? "border-brass/50 bg-brass/15 text-brass"
-                    : "border-border-warm text-parchment-dim hover:border-brass/40 hover:text-parchment"
-                }`}
-              >
-                {roomStatusLabel[s]}
-              </button>
-            ))}
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-parchment-dim">Solicitar limpieza</p>
+            <select
+              value={requestType}
+              onChange={(e) => {
+                setRequestType(e.target.value as CleaningRequestType);
+                setRequestTypeTouched(true);
+              }}
+              className="mb-3 w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
+            >
+              {REQUEST_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {cleaningTypeLabel[t]}
+                </option>
+              ))}
+            </select>
+            <input
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Notas (opcional)"
+              className="mb-3 w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment placeholder:text-parchment-dim/50 outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
+            />
+            {error && <p className="mb-3 text-sm text-room-maintenance">{error}</p>}
+            {message && <p className="mb-3 text-sm text-room-available">{message}</p>}
+            <button
+              onClick={createRequest}
+              disabled={submitting}
+              className="w-full rounded-lg bg-brass py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
+            >
+              {submitting ? "Creando…" : "Crear solicitud"}
+            </button>
           </div>
         </div>
-      )}
-
-      <div className="border-t border-border-warm/50 pt-4">
-        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-parchment-dim">Solicitar limpieza</p>
-        <select
-          value={requestType}
-          onChange={(e) => {
-            setRequestType(e.target.value as CleaningRequestType);
-            setRequestTypeTouched(true);
-          }}
-          className="mb-3 w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
-        >
-          {REQUEST_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {cleaningTypeLabel[t]}
-            </option>
-          ))}
-        </select>
-        <input
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Notas (opcional)"
-          className="mb-3 w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment placeholder:text-parchment-dim/50 outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
-        />
-        {error && <p className="mb-3 text-sm text-room-maintenance">{error}</p>}
-        {message && <p className="mb-3 text-sm text-room-available">{message}</p>}
-        <button
-          onClick={createRequest}
-          disabled={submitting}
-          className="w-full rounded-lg bg-brass py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
-        >
-          {submitting ? "Creando…" : "Crear solicitud"}
-        </button>
       </div>
 
-      <div className="mt-4 border-t border-border-warm/50 pt-4">
+      <div className="mt-6 border-t border-border-warm/50 pt-4">
         <button
           onClick={toggleHistory}
           className="text-xs font-medium uppercase tracking-wide text-parchment-dim transition hover:text-brass"
         >
-          {showHistory ? "Ocultar historial ↑" : "Ver historial ↓"}
+          {showHistory ? "Ocultar historial completo ↑" : "Ver historial completo ↓"}
         </button>
 
+        {/* Sin overflow/max-h propio a propósito: este historial es parte del
+            mismo scroll del modal (ver Modal.tsx) — tener un segundo
+            contenedor con su propia barra de scroll se veía como "doble
+            scroll" superpuesto y confundía. */}
         {showHistory && (
-          <div className="mt-3 max-h-56 space-y-2.5 overflow-y-auto pr-1">
+          <div className="mt-3 space-y-2.5">
             {loadingHistory && <p className="text-sm text-parchment-dim">Cargando…</p>}
             {history &&
               buildTimeline(history).map((item, i) => (
@@ -439,7 +497,7 @@ function MinibarManager({ room, token }: { room: Room; token: string }) {
   }
 
   return (
-    <div className="mb-5 border-b border-border-warm/50 pb-5">
+    <div>
       <p className="mb-2 text-xs font-medium uppercase tracking-wide text-parchment-dim">Frigobar</p>
 
       {loading ? (

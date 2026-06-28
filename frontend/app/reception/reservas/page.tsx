@@ -5,10 +5,10 @@ import { useAuth } from "@/lib/auth";
 import { useRealtime } from "@/lib/ws";
 import { api, ApiError } from "@/lib/api";
 import type { Reservation, RealtimeEvent, Room } from "@/lib/types";
-import { formatDateTime, reservationStatusLabel } from "@/lib/labels";
+import { formatDateTime, reservationStatusLabel, roomTypeLabel } from "@/lib/labels";
 import { DashboardShell } from "@/components/DashboardShell";
 import { Modal } from "@/components/Modal";
-import { SiteRequestsPanel } from "@/components/SiteRequestsPanel";
+import { SiteRequestsPanel, roomOrWaitlistLabel } from "@/components/SiteRequestsPanel";
 import { CheckoutModal } from "@/components/CheckoutModal";
 
 const NAV = [
@@ -117,9 +117,14 @@ export default function ReservationsPage() {
           <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-warm bg-surface p-4">
             <div>
               <p className="text-sm text-parchment">
-                {r.guest_name} · cuarto {rooms[r.room_id]?.number ?? "—"}
+                {r.guest_name} · {roomOrWaitlistLabel(r, rooms)}
                 <span className="text-parchment-dim"> · {r.guests} huésped(es)</span>
                 {r.guest_id_document && <span className="text-parchment-dim"> · ID {r.guest_id_document}</span>}
+                {!r.room_id && (
+                  <span className="ml-2 rounded-full bg-room-maintenance/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-room-maintenance">
+                    Sin cuarto
+                  </span>
+                )}
               </p>
               <p className="text-[11px] text-parchment-dim">
                 {formatDateTime(r.check_in)} → {formatDateTime(r.check_out)}
@@ -147,7 +152,8 @@ export default function ReservationsPage() {
                 <>
                   <button
                     onClick={() => checkin(r.id)}
-                    disabled={busy === r.id}
+                    disabled={busy === r.id || !r.room_id}
+                    title={!r.room_id ? "Asigna un cuarto primero (Editar)" : undefined}
                     className="rounded-lg bg-brass px-3 py-1.5 text-xs font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
                   >
                     Check-in
@@ -363,7 +369,7 @@ function EditReservationModal({
   onClose: () => void;
   onUpdated: (r: Reservation) => void;
 }) {
-  const [roomId, setRoomId] = useState(reservation.room_id);
+  const [roomId, setRoomId] = useState(reservation.room_id ?? "");
   const [guestName, setGuestName] = useState(reservation.guest_name);
   const [guestPhone, setGuestPhone] = useState(reservation.guest_phone ?? "");
   const [guestIdDocument, setGuestIdDocument] = useState(reservation.guest_id_document ?? "");
@@ -380,7 +386,7 @@ function EditReservationModal({
       const updated = await api.patch<Reservation>(
         `/reservations/${reservation.id}`,
         {
-          room_id: roomId,
+          room_id: roomId || null,
           guest_name: guestName,
           guest_phone: guestPhone || undefined,
           guest_id_document: guestIdDocument || undefined,
@@ -404,14 +410,22 @@ function EditReservationModal({
       <select
         value={roomId}
         onChange={(e) => setRoomId(e.target.value)}
-        className="mb-3 w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
+        className="mb-1.5 w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
       >
+        <option value="">
+          Sin asignar (lista de espera{reservation.requested_room_type ? ` — ${roomTypeLabel[reservation.requested_room_type]}` : ""})
+        </option>
         {rooms.map((r) => (
           <option key={r.id} value={r.id}>
             Cuarto {r.number}
           </option>
         ))}
       </select>
+      {!roomId && (
+        <p className="mb-3 text-[11px] text-room-maintenance">
+          Sin cuarto asignado no se puede hacer check-in — asigna uno cuando haya disponible.
+        </p>
+      )}
 
       <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">Huésped</label>
       <input

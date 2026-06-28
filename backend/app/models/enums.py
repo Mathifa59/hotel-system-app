@@ -64,3 +64,9 @@ class ReservationStatus(str, enum.Enum):
 class ReservationSource(str, enum.Enum):
     staff = "staff"
     website = "website"
+
+
+class PaymentMethod(str, enum.Enum):
+    cash = "cash"
+    card = "card"
+    transfer = "transfer"

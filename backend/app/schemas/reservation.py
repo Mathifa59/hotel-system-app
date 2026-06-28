@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.enums import ReservationSource, ReservationStatus
+from app.models.enums import PaymentMethod, ReservationSource, ReservationStatus, RoomType
 from app.schemas.charge import ChargeOut
 
 
@@ -29,11 +29,19 @@ class ReservationUpdate(BaseModel):
     notes: str | None = None
 
 
+class PaymentInfo(BaseModel):
+    method: PaymentMethod
+    amount_pen: Decimal
+    amount_usd: Decimal
+    paid_at: datetime
+
+
 class ReservationOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    room_id: uuid.UUID
+    room_id: uuid.UUID | None
+    requested_room_type: RoomType | None
     guest_name: str
     guest_phone: str | None
     guest_email: str | None
@@ -47,6 +55,10 @@ class ReservationOut(BaseModel):
     confirmed: bool
     created_by: uuid.UUID | None
     created_at: datetime
+    payment_method: PaymentMethod | None
+    payment_amount_pen: Decimal | None
+    payment_amount_usd: Decimal | None
+    paid_at: datetime | None
 
 
 class ReservationFolio(BaseModel):

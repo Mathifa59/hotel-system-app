@@ -66,14 +66,14 @@ def create_booking_request(
             detail=f"Ese tipo de cuarto admite máximo {capacity} huésped(es)",
         )
 
+    # Si no hay cuarto libre de ese tipo, la solicitud se crea igual, sin
+    # cuarto asignado — queda en lista de espera para que recepción la
+    # resuelva a mano (en vez de rechazarla de plano y perder al huésped).
     room = find_available_room(db, data.room_type, data.check_in, data.check_out)
-    if room is None:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, detail="No hay cuartos de ese tipo disponibles para esas fechas"
-        )
 
     reservation = Reservation(
-        room_id=room.id,
+        room_id=room.id if room else None,
+        requested_room_type=data.room_type,
         guest_name=data.guest_name,
         guest_email=data.guest_email,
         guest_phone=data.guest_phone,
@@ -88,22 +88,23 @@ def create_booking_request(
     db.add(reservation)
     db.flush()
 
+    room_label = f"cuarto {room.number}" if room else f"SIN CUARTO LIBRE ({ROOM_TYPE_LABEL[data.room_type]})"
     log_activity(
         db,
         user_id=None,
         action="reservation.requested_from_website",
         entity="reservations",
         entity_id=reservation.id,
-        meta={"room": room.number, "guest": data.guest_name},
+        meta={"room": room.number if room else None, "guest": data.guest_name},
     )
-    message = f"Nueva solicitud del sitio web — {data.guest_name}, cuarto {room.number} ({ROOM_TYPE_LABEL[room.type]})"
+    message = f"Nueva solicitud del sitio web — {data.guest_name}, {room_label}"
     for audience in ("reception", "admin"):
         create_notification(
             db,
             audience=audience,
             event="booking_request_created",
             message=message,
-            meta={"id": str(reservation.id), "room": room.number, "guest": data.guest_name},
+            meta={"id": str(reservation.id), "room": room.number if room else None, "guest": data.guest_name},
         )
 
     db.commit()
@@ -112,6 +113,13 @@ def create_booking_request(
     publish_event(
         "booking_request_created",
         audiences=["reception", "admin"],
-        payload={"id": str(reservation.id), "room": room.number, "guest": data.guest_name},
+        payload={"id": str(reservation.id), "room": room.number if room else None, "guest": data.guest_name},
     )
-    return reservation
+    return BookingRequestOut(
+        id=reservation.id,
+        guest_name=reservation.guest_name,
+        check_in=reservation.check_in,
+        check_out=reservation.check_out,
+        status=reservation.status,
+        room_assigned=room is not None,
+    )

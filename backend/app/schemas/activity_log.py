@@ -2,6 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from app.schemas.charge import ChargeOut
 from app.schemas.cleaning_request import CleaningRequestOut
 from app.schemas.reservation import ReservationOut
 
@@ -16,4 +17,5 @@ class ActivityLogOut(BaseModel):
 class RoomHistory(BaseModel):
     reservations: list[ReservationOut]
     cleaning_requests: list[CleaningRequestOut]
+    charges: list[ChargeOut]
     activity: list[ActivityLogOut]

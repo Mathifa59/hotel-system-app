@@ -40,7 +40,7 @@ export default function AdminRoomsPage() {
         setOverdueRoomNumbers(
           new Set(
             active
-              .filter((r) => new Date(r.check_out).getTime() < now)
+              .filter((r): r is typeof r & { room_id: string } => r.room_id !== null && new Date(r.check_out).getTime() < now)
               .map((r) => byId[r.room_id])
               .filter(Boolean)
           )

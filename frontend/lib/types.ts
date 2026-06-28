@@ -7,6 +7,7 @@ export type ChargeType = "minibar" | "damage" | "extra_cleaning" | "other" | "ro
 export type ChargeStatus = "pending" | "approved" | "billed" | "cancelled";
 export type ReservationStatus = "pending" | "active" | "checked_out" | "cancelled";
 export type ReservationSource = "staff" | "website";
+export type PaymentMethod = "cash" | "card" | "transfer";
 
 export interface User {
   id: string;
@@ -73,7 +74,8 @@ export interface Charge {
 
 export interface Reservation {
   id: string;
-  room_id: string;
+  room_id: string | null;
+  requested_room_type: RoomType | null;
   guest_name: string;
   guest_phone: string | null;
   guest_email: string | null;
@@ -87,6 +89,10 @@ export interface Reservation {
   confirmed: boolean;
   created_by: string | null;
   created_at: string;
+  payment_method: PaymentMethod | null;
+  payment_amount_pen: string | null;
+  payment_amount_usd: string | null;
+  paid_at: string | null;
 }
 
 export interface ReservationFolio {
@@ -146,6 +152,7 @@ export interface ActivityLogEntry {
 export interface RoomHistory {
   reservations: Reservation[];
   cleaning_requests: CleaningRequest[];
+  charges: Charge[];
   activity: ActivityLogEntry[];
 }
 

@@ -21,7 +21,7 @@ from app.models.enums import (
 from app.models.reservation import Reservation
 from app.models.room import Room, RoomTypeRate
 from app.models.user import User
-from app.schemas.reservation import ReservationCreate, ReservationFolio, ReservationOut, ReservationUpdate
+from app.schemas.reservation import PaymentInfo, ReservationCreate, ReservationFolio, ReservationOut, ReservationUpdate
 from app.services.activity_log import log_activity
 from app.services.capacity import ROOM_CAPACITY
 from app.services.events import publish_event
@@ -159,39 +159,48 @@ def update_reservation(
     if new_check_out <= new_check_in:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="check_out debe ser posterior a check_in")
 
-    new_room = db.get(Room, new_room_id)
-    if new_room is None:
+    # new_room_id puede seguir siendo None: una reserva en lista de espera
+    # (del sitio web, sin cuarto libre al momento de pedirla) puede editarse
+    # en otros campos (huésped, fechas) sin que recepción tenga que asignarle
+    # ya un cuarto. Las validaciones de capacidad/cruce de fechas solo
+    # aplican cuando SÍ hay un cuarto de por medio.
+    new_room = db.get(Room, new_room_id) if new_room_id is not None else None
+    if new_room_id is not None and new_room is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cuarto no encontrado")
 
-    capacity = ROOM_CAPACITY[new_room.type]
-    if new_guests > capacity:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"El cuarto {new_room.number} admite máximo {capacity} huésped(es)",
-        )
+    capacity_type = new_room.type if new_room else reservation.requested_room_type
+    if capacity_type is not None:
+        capacity = ROOM_CAPACITY[capacity_type]
+        if new_guests > capacity:
+            label = new_room.number if new_room else "ese tipo de cuarto"
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"El cuarto {label} admite máximo {capacity} huésped(es)",
+            )
 
-    overlap = (
-        db.query(Reservation)
-        .filter(
-            Reservation.room_id == new_room_id,
-            Reservation.id != reservation_id,
-            Reservation.status.in_([ReservationStatus.pending, ReservationStatus.active]),
-            Reservation.check_in < new_check_out,
-            Reservation.check_out > new_check_in,
+    if new_room is not None:
+        overlap = (
+            db.query(Reservation)
+            .filter(
+                Reservation.room_id == new_room_id,
+                Reservation.id != reservation_id,
+                Reservation.status.in_([ReservationStatus.pending, ReservationStatus.active]),
+                Reservation.check_in < new_check_out,
+                Reservation.check_out > new_check_in,
+            )
+            .first()
         )
-        .first()
-    )
-    if overlap is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"El cuarto {new_room.number} ya tiene una reserva de {overlap.guest_name} que se cruza con esas fechas",
-        )
+        if overlap is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"El cuarto {new_room.number} ya tiene una reserva de {overlap.guest_name} que se cruza con esas fechas",
+            )
 
     # Si se cambia de cuarto en una reserva ACTIVA (huésped ya alojado), hay que
     # mover los estados: el cuarto viejo queda por limpiar, el nuevo se ocupa.
     moved_rooms: list[Room] = []
     room_changed = new_room_id != reservation.room_id
-    if room_changed and reservation.status == ReservationStatus.active:
+    if room_changed and reservation.status == ReservationStatus.active and new_room is not None:
         if new_room.status != RoomStatus.available:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail="El cuarto destino no está disponible"
@@ -208,8 +217,8 @@ def update_reservation(
         db,
         user_id=current_user.id,
         action="reservation.updated",
-        entity="rooms",
-        entity_id=new_room.id,
+        entity="rooms" if new_room is not None else "reservations",
+        entity_id=new_room.id if new_room is not None else reservation.id,
         meta={"changed": list(changes.keys())},
     )
     db.commit()
@@ -233,6 +242,11 @@ def checkin(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="La reserva no está pendiente")
     if not reservation.confirmed:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="La reserva todavía no está confirmada")
+    if reservation.room_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Esta reserva está en lista de espera — asígnale un cuarto antes de hacer check-in",
+        )
 
     room = db.get(Room, reservation.room_id)
     if room.status != RoomStatus.available:
@@ -275,7 +289,8 @@ def confirm_reservation(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Esta solicitud ya está confirmada")
 
     reservation.confirmed = True
-    room = db.get(Room, reservation.room_id)
+    room = db.get(Room, reservation.room_id) if reservation.room_id else None
+    room_label = f"cuarto {room.number}" if room else "lista de espera, sin cuarto asignado"
 
     log_activity(
         db, user_id=current_user.id, action="reservation.confirmed", entity="reservations", entity_id=reservation.id
@@ -284,14 +299,16 @@ def confirm_reservation(
         db,
         audience="all",
         event="booking_request_confirmed",
-        message=f"Solicitud de {reservation.guest_name} confirmada — cuarto {room.number}",
-        meta={"room": room.number, "guest": reservation.guest_name},
+        message=f"Solicitud de {reservation.guest_name} confirmada — {room_label}",
+        meta={"room": room.number if room else None, "guest": reservation.guest_name},
     )
     db.commit()
     db.refresh(reservation)
 
     publish_event(
-        "booking_request_confirmed", audiences=["all"], payload={"room": room.number, "guest": reservation.guest_name}
+        "booking_request_confirmed",
+        audiences=["all"],
+        payload={"room": room.number if room else None, "guest": reservation.guest_name},
     )
     return reservation
 
@@ -313,7 +330,8 @@ def reject_reservation(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Esta solicitud ya no está pendiente")
 
     reservation.status = ReservationStatus.cancelled
-    room = db.get(Room, reservation.room_id)
+    room = db.get(Room, reservation.room_id) if reservation.room_id else None
+    room_label = f"cuarto {room.number}" if room else "lista de espera"
 
     log_activity(
         db, user_id=current_user.id, action="reservation.rejected", entity="reservations", entity_id=reservation.id
@@ -322,14 +340,16 @@ def reject_reservation(
         db,
         audience="all",
         event="booking_request_rejected",
-        message=f"Solicitud de {reservation.guest_name} rechazada — cuarto {room.number}",
-        meta={"room": room.number, "guest": reservation.guest_name},
+        message=f"Solicitud de {reservation.guest_name} rechazada — {room_label}",
+        meta={"room": room.number if room else None, "guest": reservation.guest_name},
     )
     db.commit()
     db.refresh(reservation)
 
     publish_event(
-        "booking_request_rejected", audiences=["all"], payload={"room": room.number, "guest": reservation.guest_name}
+        "booking_request_rejected",
+        audiences=["all"],
+        payload={"room": room.number if room else None, "guest": reservation.guest_name},
     )
     return reservation
 
@@ -372,6 +392,7 @@ def reservation_folio(
 @router.patch("/{reservation_id}/checkout", response_model=ReservationOut)
 def checkout(
     reservation_id: uuid.UUID,
+    payment: PaymentInfo | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.admin, UserRole.reception)),
 ):
@@ -380,6 +401,12 @@ def checkout(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reserva no encontrada")
     if reservation.status != ReservationStatus.active:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="La reserva no está activa")
+
+    if payment is not None:
+        reservation.payment_method = payment.method
+        reservation.payment_amount_pen = payment.amount_pen
+        reservation.payment_amount_usd = payment.amount_usd
+        reservation.paid_at = payment.paid_at
 
     room = db.get(Room, reservation.room_id)
     rate = db.get(RoomTypeRate, room.type)
@@ -420,6 +447,19 @@ def checkout(
     log_activity(
         db, user_id=current_user.id, action="reservation.checked_out", entity="reservations", entity_id=reservation.id
     )
+    if payment is not None:
+        log_activity(
+            db,
+            user_id=current_user.id,
+            action="reservation.paid",
+            entity="rooms",
+            entity_id=room.id,
+            meta={
+                "method": payment.method.value,
+                "amount_pen": str(payment.amount_pen),
+                "amount_usd": str(payment.amount_usd),
+            },
+        )
     log_activity(
         db,
         user_id=current_user.id,

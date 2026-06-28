@@ -41,3 +41,7 @@ class BookingRequestOut(BaseModel):
     check_in: datetime
     check_out: datetime
     status: ReservationStatus
+    # False = no había cuarto de ese tipo libre para esas fechas; la
+    # solicitud quedó en lista de espera (sin room_id) y recepción la
+    # resuelve a mano. El sitio web usa esto para avisarle al huésped.
+    room_assigned: bool

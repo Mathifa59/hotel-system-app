@@ -5,6 +5,13 @@ import { api, ApiError } from "@/lib/api";
 import type { Reservation, Room } from "@/lib/types";
 import { formatDateTime, roomTypeLabel } from "@/lib/labels";
 
+export function roomOrWaitlistLabel(r: Reservation, rooms: Record<string, Room>): string {
+  if (r.room_id && rooms[r.room_id]) {
+    return `cuarto ${rooms[r.room_id].number} (${roomTypeLabel[rooms[r.room_id].type]})`;
+  }
+  return r.requested_room_type ? `lista de espera — ${roomTypeLabel[r.requested_room_type]}` : "lista de espera";
+}
+
 export function SiteRequestsPanel({
   token,
   refreshSignal,
@@ -75,12 +82,18 @@ export function SiteRequestsPanel({
       {requests.map((r) => (
         <div
           key={r.id}
-          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brass/30 bg-surface-raised p-4"
+          className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 ${
+            r.room_id ? "border-brass/30 bg-surface-raised" : "border-room-maintenance/40 bg-room-maintenance/5"
+          }`}
         >
           <div>
             <p className="text-sm text-parchment">
-              {r.guest_name} · cuarto {rooms[r.room_id]?.number ?? "—"}
-              {rooms[r.room_id] && <span className="text-parchment-dim"> ({roomTypeLabel[rooms[r.room_id].type]})</span>}
+              {r.guest_name} · {roomOrWaitlistLabel(r, rooms)}
+              {!r.room_id && (
+                <span className="ml-2 rounded-full bg-room-maintenance/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-room-maintenance">
+                  Sin cuarto
+                </span>
+              )}
             </p>
             <p className="text-[11px] text-parchment-dim">
               {formatDateTime(r.check_in)} → {formatDateTime(r.check_out)}
