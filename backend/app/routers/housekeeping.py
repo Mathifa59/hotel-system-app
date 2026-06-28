@@ -44,7 +44,13 @@ def create_request(
     db.add(request)
 
     room_status_changed = False
-    if data.request_type != CleaningRequestType.do_not_enter and room.status not in _ROOM_STATUS_BLOCKS_AUTO_CLEANING:
+    if data.request_type == CleaningRequestType.do_not_enter:
+        # "No ingresar" no es una tarea para el housekeeper — no hay nada que
+        # limpiar. Se cierra de inmediato (queda en el historial del cuarto)
+        # en vez de quedar "pendiente" en la lista de tareas de nadie.
+        request.status = CleaningRequestStatus.skipped
+        request.completed_at = datetime.now(timezone.utc)
+    elif room.status not in _ROOM_STATUS_BLOCKS_AUTO_CLEANING:
         room.status = RoomStatus.cleaning
         room_status_changed = True
 
@@ -57,13 +63,14 @@ def create_request(
         entity_id=room.id,
         meta={"request_type": data.request_type.value},
     )
-    create_notification(
-        db,
-        audience="cleaning",
-        event="cleaning_request_created",
-        message=f"Nueva solicitud de limpieza ({CLEANING_TYPE_LABEL[data.request_type]}) — cuarto {room.number}",
-        meta={"id": str(request.id), "room": room.number},
-    )
+    if data.request_type != CleaningRequestType.do_not_enter:
+        create_notification(
+            db,
+            audience="cleaning",
+            event="cleaning_request_created",
+            message=f"Nueva solicitud de limpieza ({CLEANING_TYPE_LABEL[data.request_type]}) — cuarto {room.number}",
+            meta={"id": str(request.id), "room": room.number},
+        )
     if room_status_changed:
         create_notification(
             db,
@@ -75,11 +82,12 @@ def create_request(
     db.commit()
     db.refresh(request)
 
-    publish_event(
-        "cleaning_request_created",
-        audiences=["cleaning"],
-        payload={"id": str(request.id), "room": room.number, "request_type": request.request_type.value},
-    )
+    if data.request_type != CleaningRequestType.do_not_enter:
+        publish_event(
+            "cleaning_request_created",
+            audiences=["cleaning"],
+            payload={"id": str(request.id), "room": room.number, "request_type": request.request_type.value},
+        )
     if room_status_changed:
         publish_event(
             "room_status_changed",

@@ -9,10 +9,16 @@ export function SiteRequestsPanel({
   token,
   refreshSignal,
   emptyMessage,
+  onResolved,
 }: {
   token: string;
   refreshSignal?: number;
   emptyMessage?: string;
+  // Se llama tras confirmar/rechazar — la reserva ya cambió de estado pero
+  // este panel solo conoce las solicitudes pendientes, no la lista general
+  // de reservas de la página que lo contiene. Sin esto, recepción tenía que
+  // salir y volver a entrar para ver la reserva recién confirmada.
+  onResolved?: () => void;
 }) {
   const [requests, setRequests] = useState<Reservation[]>([]);
   const [rooms, setRooms] = useState<Record<string, Room>>({});
@@ -34,6 +40,7 @@ export function SiteRequestsPanel({
     try {
       await api.patch(`/reservations/${id}/confirm`, undefined, token);
       load();
+      onResolved?.();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo confirmar la solicitud");
     } finally {
@@ -47,6 +54,7 @@ export function SiteRequestsPanel({
     try {
       await api.patch(`/reservations/${id}/reject`, undefined, token);
       load();
+      onResolved?.();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo rechazar la solicitud");
     } finally {

@@ -50,6 +50,11 @@ export default function ReservationsPage() {
     if (event.event === "booking_request_created") {
       setSiteRequestsRefresh((n) => n + 1);
     }
+    // Si alguien confirma/rechaza desde otra pantalla (ej. el admin), esta
+    // lista también debe reflejarlo sin que recepción tenga que recargar.
+    if (event.event === "booking_request_confirmed" || event.event === "booking_request_rejected") {
+      load();
+    }
   });
 
   async function checkin(id: string) {
@@ -103,7 +108,7 @@ export default function ReservationsPage() {
         </div>
       </div>
 
-      {token && <SiteRequestsPanel token={token} refreshSignal={siteRequestsRefresh} />}
+      {token && <SiteRequestsPanel token={token} refreshSignal={siteRequestsRefresh} onResolved={load} />}
 
       <div className="space-y-2">
         {reservations

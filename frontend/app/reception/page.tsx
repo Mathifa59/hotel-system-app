@@ -83,6 +83,7 @@ export default function ReceptionRoomsPage() {
           room={selected}
           token={token}
           canEditStatus
+          canManageMinibar
           onClose={() => setSelected(null)}
           onUpdated={(updated) => {
             setRooms((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));

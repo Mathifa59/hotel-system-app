@@ -74,7 +74,12 @@ export function NotificationBell({ token }: { token: string }) {
         </button>
 
         {open && (
-          <div className="glass-panel animate-rise absolute right-0 top-10 z-30 max-h-96 w-[min(20rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-border-warm shadow-[0_20px_50px_-10px_rgba(0,0,0,0.6)]">
+          // top-28 (no top-10) en móvil: el header tiene una segunda fila de
+          // navegación debajo de la principal (ver DashboardShell, md:hidden).
+          // Con top-10 el panel —semitransparente— caía encima de esa fila y
+          // se veía "mezclado"/cortado con el texto de la nav. md:top-10
+          // porque en desktop esa segunda fila no existe.
+          <div className="glass-panel animate-rise absolute right-0 top-28 z-30 max-h-96 w-[min(20rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-border-warm shadow-[0_20px_50px_-10px_rgba(0,0,0,0.6)] md:top-10">
             <div className="flex items-center justify-between border-b border-border-warm/50 px-4 py-2.5">
               <span className="text-xs font-semibold uppercase tracking-wide text-parchment-dim">Notificaciones</span>
               {unreadCount > 0 && (

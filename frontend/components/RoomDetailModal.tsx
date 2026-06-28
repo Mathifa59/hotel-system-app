@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useCurrency } from "@/lib/currency";
 import { cleaningStatusLabel, cleaningTypeLabel, formatDateTime, formatMoney, reservationStatusLabel, roomStatusLabel, roomTypeLabel } from "@/lib/labels";
-import type { ActivityLogEntry, CleaningRequestType, MinibarProduct, Room, RoomHistory, RoomStatus, RoomType, StockItem } from "@/lib/types";
+import type { ActivityLogEntry, CleaningRequest, CleaningRequestType, MinibarProduct, Room, RoomHistory, RoomStatus, RoomType, StockItem } from "@/lib/types";
 import { Modal } from "./Modal";
 import { RoomBadge } from "./RoomBadge";
 
@@ -96,6 +96,7 @@ export function RoomDetailModal({
   onUpdated: (room: Room) => void;
 }) {
   const [requestType, setRequestType] = useState<CleaningRequestType>("full");
+  const [requestTypeTouched, setRequestTypeTouched] = useState(false);
   const [notes, setNotes] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -110,6 +111,19 @@ export function RoomDetailModal({
   const [hasMinibar, setHasMinibar] = useState(room.has_minibar);
   const [savingInfo, setSavingInfo] = useState(false);
   const [infoError, setInfoError] = useState<string | null>(null);
+
+  // El selector arrancaba siempre en "Completa", aunque la última solicitud
+  // para este cuarto haya sido "No ingresar" — eso confunde a recepción
+  // (parece que nunca se hubiera elegido nada). Se precarga con el tipo más
+  // reciente de ESTE cuarto, y solo si recepción no tocó el selector a mano.
+  useEffect(() => {
+    api
+      .get<CleaningRequest[]>(`/housekeeping/requests?room_id=${room.id}`, token)
+      .then((list) => {
+        if (!requestTypeTouched && list.length > 0) setRequestType(list[0].request_type);
+      })
+      .catch(() => {});
+  }, [room.id, token, requestTypeTouched]);
 
   async function saveInfo() {
     setSavingInfo(true);
@@ -305,7 +319,10 @@ export function RoomDetailModal({
         <p className="mb-2 text-xs font-medium uppercase tracking-wide text-parchment-dim">Solicitar limpieza</p>
         <select
           value={requestType}
-          onChange={(e) => setRequestType(e.target.value as CleaningRequestType)}
+          onChange={(e) => {
+            setRequestType(e.target.value as CleaningRequestType);
+            setRequestTypeTouched(true);
+          }}
           className="mb-3 w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
         >
           {REQUEST_TYPES.map((t) => (
