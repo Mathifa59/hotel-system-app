@@ -34,7 +34,7 @@ def list_products(db: Session = Depends(get_db), current_user: User = Depends(ge
 def create_product(
     data: MinibarProductCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.admin, UserRole.cleaning)),
+    current_user: User = Depends(require_role(UserRole.admin, UserRole.cleaning, UserRole.reception)),
 ):
     product = MinibarProduct(**data.model_dump())
     db.add(product)
@@ -65,7 +65,7 @@ def get_stock(
 def set_stock(
     data: StockSetRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.admin, UserRole.cleaning)),
+    current_user: User = Depends(require_role(UserRole.admin, UserRole.cleaning, UserRole.reception)),
 ):
     """Setea/reabastece el stock de un producto en un cuarto (upsert)."""
     room = db.get(Room, data.room_id)
