@@ -23,6 +23,9 @@ export default function LoginPage() {
       router.replace(`/${role}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo conectar con el servidor");
+      // Limpiar la contraseña tras un intento fallido — que no quede ahí
+      // como si fuera válida, y que sea obvio que hay que escribirla de nuevo.
+      setPassword("");
     } finally {
       setSubmitting(false);
     }
@@ -58,9 +61,16 @@ export default function LoginPage() {
             required
             autoFocus
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setError(null);
+            }}
             placeholder="admin@hotel.com"
-            className="mb-4 w-full rounded-lg border border-border-warm bg-ink/60 px-3.5 py-2.5 text-parchment placeholder:text-parchment-dim/50 outline-none transition focus:border-brass focus:ring-2 focus:ring-brass/30"
+            className={`mb-4 w-full rounded-lg border bg-ink/60 px-3.5 py-2.5 text-parchment placeholder:text-parchment-dim/50 outline-none transition focus:ring-2 ${
+              error
+                ? "border-room-maintenance/60 focus:border-room-maintenance focus:ring-room-maintenance/25"
+                : "border-border-warm focus:border-brass focus:ring-brass/30"
+            }`}
           />
 
           <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">
@@ -70,14 +80,25 @@ export default function LoginPage() {
             type="password"
             required
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              setError(null);
+            }}
             placeholder="••••••••"
-            className="mb-5 w-full rounded-lg border border-border-warm bg-ink/60 px-3.5 py-2.5 text-parchment placeholder:text-parchment-dim/50 outline-none transition focus:border-brass focus:ring-2 focus:ring-brass/30"
+            className={`mb-5 w-full rounded-lg border bg-ink/60 px-3.5 py-2.5 text-parchment placeholder:text-parchment-dim/50 outline-none transition focus:ring-2 ${
+              error
+                ? "border-room-maintenance/60 focus:border-room-maintenance focus:ring-room-maintenance/25"
+                : "border-border-warm focus:border-brass focus:ring-brass/30"
+            }`}
           />
 
           {error && (
-            <p className="mb-4 rounded-lg border border-room-maintenance/30 bg-room-maintenance/10 px-3 py-2 text-sm text-room-maintenance">
-              {error}
+            <p className="mb-4 flex items-start gap-2 rounded-lg border border-room-maintenance/30 bg-room-maintenance/10 px-3 py-2.5 text-sm text-room-maintenance">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mt-0.5 h-4 w-4 shrink-0">
+                <circle cx="12" cy="12" r="9.5" />
+                <path d="M12 7.5v5.5M12 16.5h.01" strokeLinecap="round" />
+              </svg>
+              <span>{error}</span>
             </p>
           )}
 

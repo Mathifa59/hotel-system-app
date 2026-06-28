@@ -17,8 +17,16 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post("/login", response_model=TokenResponse, dependencies=[Depends(rate_limit(10))])
 def login(data: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == data.email).first()
-    if user is None or not user.is_active or not verify_password(data.password, user.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email o contraseña incorrectos")
+    # Mensajes distintos a propósito (sistema interno de pocos usuarios, el
+    # riesgo de que alguien adivine correos válidos es bajo y la claridad
+    # para el staff vale más que la ambigüedad genérica de "email o
+    # contraseña incorrectos").
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No existe una cuenta con ese correo")
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Esta cuenta está desactivada")
+    if not verify_password(data.password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Contraseña incorrecta")
 
     token = create_access_token(subject=str(user.id), role=user.role.value)
     return TokenResponse(access_token=token, role=user.role)
