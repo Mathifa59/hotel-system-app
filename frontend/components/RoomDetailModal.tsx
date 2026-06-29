@@ -150,7 +150,6 @@ export function RoomDetailModal({
   const [requestTypeTouched, setRequestTypeTouched] = useState(false);
   const [notes, setNotes] = useState("");
   const [markingClean, setMarkingClean] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [history, setHistory] = useState<RoomHistory | null>(null);
@@ -211,11 +210,17 @@ export function RoomDetailModal({
     }
   }
 
+  // Estas tres acciones son "una sola cosa y listo" (a diferencia del
+  // frigobar, donde se agregan o consumen varios productos en una sola
+  // visita) — por eso cierran el modal al terminar. Antes ninguna cerraba,
+  // lo que se sentía inconsistente apenas se agregó "Marcar como limpio" al
+  // lado de las demás.
   async function changeStatus(status: RoomStatus) {
     setError(null);
     try {
       const updated = await api.patch<Room>(`/rooms/${room.id}/status`, { status }, token);
       onUpdated(updated);
+      onClose();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo cambiar el estado");
     }
@@ -227,9 +232,9 @@ export function RoomDetailModal({
     try {
       const updated = await api.patch<Room>(`/rooms/${room.id}/mark-clean`, undefined, token);
       onUpdated(updated);
+      onClose();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo marcar como limpio");
-    } finally {
       setMarkingClean(false);
     }
   }
@@ -237,18 +242,15 @@ export function RoomDetailModal({
   async function createRequest() {
     setSubmitting(true);
     setError(null);
-    setMessage(null);
     try {
       await api.post(
         "/housekeeping/requests",
         { room_id: room.id, request_type: requestType, notes: notes || undefined },
         token
       );
-      setMessage("Solicitud de limpieza creada.");
-      setNotes("");
+      onClose();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo crear la solicitud");
-    } finally {
       setSubmitting(false);
     }
   }
@@ -433,7 +435,6 @@ export function RoomDetailModal({
               className="mb-3 w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment placeholder:text-parchment-dim/50 outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
             />
             {error && <p className="mb-3 text-sm text-room-maintenance">{error}</p>}
-            {message && <p className="mb-3 text-sm text-room-available">{message}</p>}
             <button
               onClick={createRequest}
               disabled={submitting}
