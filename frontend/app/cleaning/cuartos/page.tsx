@@ -69,6 +69,7 @@ export default function CleaningRoomsPage() {
           token={token}
           canEditStatus={false}
           canManageMinibar
+          canCompleteCleaning
           onClose={() => setSelected(null)}
           onUpdated={(updated) => {
             setRooms((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));

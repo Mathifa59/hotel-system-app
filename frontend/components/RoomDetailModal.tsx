@@ -131,6 +131,7 @@ export function RoomDetailModal({
   canEditStatus,
   canEditInfo = false,
   canManageMinibar = false,
+  canCompleteCleaning = false,
   onClose,
   onUpdated,
 }: {
@@ -139,12 +140,16 @@ export function RoomDetailModal({
   canEditStatus: boolean;
   canEditInfo?: boolean;
   canManageMinibar?: boolean;
+  // El housekeeper no "solicita" limpieza para sí mismo — en su lugar ve un
+  // botón para marcarla como hecha directamente (ver mark-clean en backend).
+  canCompleteCleaning?: boolean;
   onClose: () => void;
   onUpdated: (room: Room) => void;
 }) {
   const [requestType, setRequestType] = useState<CleaningRequestType>("full");
   const [requestTypeTouched, setRequestTypeTouched] = useState(false);
   const [notes, setNotes] = useState("");
+  const [markingClean, setMarkingClean] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -216,6 +221,19 @@ export function RoomDetailModal({
     }
   }
 
+  async function markClean() {
+    setMarkingClean(true);
+    setError(null);
+    try {
+      const updated = await api.patch<Room>(`/rooms/${room.id}/mark-clean`, undefined, token);
+      onUpdated(updated);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo marcar como limpio");
+    } finally {
+      setMarkingClean(false);
+    }
+  }
+
   async function createRequest() {
     setSubmitting(true);
     setError(null);
@@ -234,6 +252,8 @@ export function RoomDetailModal({
       setSubmitting(false);
     }
   }
+
+  const hasLeftColumn = canEditInfo || canEditStatus;
 
   return (
     <Modal title={`Cuarto ${room.number}`} onClose={onClose} wide>
@@ -254,8 +274,13 @@ export function RoomDetailModal({
         </button>
       )}
 
-      <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+      {/* Si no hay nada que mostrar en la columna izquierda (caso del
+          housekeeper: no edita info ni estado), una sola columna a todo el
+          ancho — dos columnas con una vacía se veía angosto y desperdiciaba
+          la mitad del modal. */}
+      <div className={hasLeftColumn ? "grid gap-x-8 gap-y-5 sm:grid-cols-2" : ""}>
         {/* ───── Columna izquierda: identidad y estado del cuarto ───── */}
+        {hasLeftColumn && (
         <div className="space-y-5">
           {canEditInfo && (
             <div>
@@ -363,11 +388,28 @@ export function RoomDetailModal({
             </div>
           )}
         </div>
+        )}
 
-        {/* ───── Columna derecha: frigobar + solicitar limpieza ───── */}
-        <div className="space-y-5 sm:border-l sm:border-border-warm/50 sm:pl-8">
+        {/* ───── Columna derecha (o única): frigobar + limpieza ───── */}
+        <div className={hasLeftColumn ? "space-y-5 sm:border-l sm:border-border-warm/50 sm:pl-8" : "space-y-5"}>
           {canManageMinibar && room.has_minibar && <MinibarManager room={room} token={token} />}
 
+          {canCompleteCleaning ? (
+            <div>
+              <button
+                onClick={markClean}
+                disabled={markingClean || room.status === "clean"}
+                className="w-full rounded-lg bg-brass py-2.5 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
+              >
+                {markingClean
+                  ? "Marcando…"
+                  : room.status === "clean"
+                    ? "Cuarto ya está limpio"
+                    : "Marcar como limpio"}
+              </button>
+              {error && <p className="mt-2 text-sm text-room-maintenance">{error}</p>}
+            </div>
+          ) : (
           <div>
             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-parchment-dim">Solicitar limpieza</p>
             <select
@@ -400,6 +442,7 @@ export function RoomDetailModal({
               {submitting ? "Creando…" : "Crear solicitud"}
             </button>
           </div>
+          )}
         </div>
       </div>
 

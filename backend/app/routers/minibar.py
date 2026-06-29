@@ -163,10 +163,11 @@ def register_consumption(
         total_pen += line_total_pen
         total_usd += line_total_usd
 
+    detail = ", ".join(f"{item.quantity}x {stocks_by_product[item.product_id][0].name}" for item in data.items)
     charge = Charge(
         reservation_id=data.reservation_id,
         type=ChargeType.minibar,
-        description=f"Consumo frigobar cuarto {room.number}",
+        description=f"Frigobar cuarto {room.number} — {detail}",
         amount_pen=total_pen,
         amount_usd=total_usd,
         status=ChargeStatus.pending,

@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -8,7 +9,7 @@ from app.deps import get_current_user, require_role
 from app.models.activity_log import ActivityLog
 from app.models.charge import Charge
 from app.models.cleaning_request import CleaningRequest
-from app.models.enums import RoomType, UserRole
+from app.models.enums import CleaningRequestStatus, RoomStatus, RoomType, UserRole
 from app.models.reservation import Reservation
 from app.models.room import Room, RoomTypeRate
 from app.models.user import User
@@ -141,6 +142,63 @@ def update_room_status(
         audiences=["all"],
         payload={"room": room.number, "status": room.status.value},
     )
+    return room
+
+
+@router.patch("/{room_id}/mark-clean", response_model=RoomOut)
+def mark_clean(
+    room_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.cleaning)),
+):
+    """Acción rápida para el housekeeper desde el mapa de cuartos: marca el
+    cuarto como limpio directamente — no tiene sentido que limpieza "solicite"
+    una limpieza para sí misma. Si hay una tarea pendiente o en curso para
+    este cuarto, se cierra junto con el cuarto para que "Mis tareas" quede
+    sincronizado sin un paso aparte de tomar y completar."""
+    room = db.get(Room, room_id)
+    if room is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cuarto no encontrado")
+
+    pending_request = (
+        db.query(CleaningRequest)
+        .filter(
+            CleaningRequest.room_id == room_id,
+            CleaningRequest.status.in_([CleaningRequestStatus.pending, CleaningRequestStatus.in_progress]),
+        )
+        .order_by(CleaningRequest.created_at.desc())
+        .first()
+    )
+    now = datetime.now(timezone.utc)
+    if pending_request is not None:
+        pending_request.status = CleaningRequestStatus.completed
+        pending_request.completed_at = now
+        pending_request.assigned_to = current_user.id
+        if pending_request.started_at is None:
+            pending_request.started_at = now
+
+    room.status = RoomStatus.clean
+    log_activity(
+        db, user_id=current_user.id, action="room.status_changed", entity="rooms", entity_id=room.id,
+        meta={"status": room.status.value},
+    )
+    create_notification(
+        db,
+        audience="all",
+        event="room_status_changed",
+        message=f"Cuarto {room.number} cambió a {ROOM_STATUS_LABEL[room.status]}",
+        meta={"room": room.number, "status": room.status.value},
+    )
+    db.commit()
+    db.refresh(room)
+
+    publish_event("room_status_changed", audiences=["all"], payload={"room": room.number, "status": room.status.value})
+    if pending_request is not None:
+        publish_event(
+            "cleaning_request_completed",
+            audiences=["reception", "admin"],
+            payload={"id": str(pending_request.id), "room": room.number},
+        )
     return room
 
 
