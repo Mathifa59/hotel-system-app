@@ -584,7 +584,8 @@ function MinibarManager({ room, token }: { room: Room; token: string }) {
         <>
           {!reservationId && (
             <p className="mb-2 text-[11px] text-room-maintenance">
-              No se encontró una reserva reciente — no se puede registrar consumo todavía.
+              Este cuarto no tiene una reserva real asociada (cambiar el estado a mano no cuenta como una) — crea
+              la reserva y haz check-in para poder registrar consumo.
             </p>
           )}
           {consumeMessage && <p className="mb-2 text-[11px] text-room-available">{consumeMessage}</p>}
