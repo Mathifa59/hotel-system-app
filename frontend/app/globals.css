@@ -71,14 +71,20 @@
   --color-border-warm: #d9c69c;
 
   /* El dorado original (#c9a35f) es casi tan claro como el crema de fondo —
-     acá se oscurece para que siga leyéndose como texto/acento (nav activo,
-     bordes de foco) sin perder el tono metálico. El valor original pasa a
-     ser el estado "bright" (hover/activo), igual que hacía de base. */
-  --color-brass: #a3792f;
-  --color-brass-bright: #c9a35f;
+     acá se oscurece bastante más de lo que parecía necesario en pantalla
+     (primer intento, #a3792f, seguía leyéndose apagado sobre blanco) para
+     que se note como un acento con carácter, no un tono lavado. El valor
+     original pasa a ser el estado "bright" (hover/activo), igual que hacía
+     de base en el tema oscuro. */
+  --color-brass: #8a6423;
+  --color-brass-bright: #b98f42;
 
   --color-parchment: #241f16;
-  --color-parchment-dim: #6b6151;
+  /* Igual que con brass: el primer valor (#6b6151) era legible pero se
+     perdía en textos chicos (línea de fecha de una reserva, íconos del
+     header) — bajarlo más lo deja con contraste de sobra sin volverlo
+     negro puro (eso le tocaría solo a --color-parchment). */
+  --color-parchment-dim: #4a4033;
 }
 
 @layer utilities {
