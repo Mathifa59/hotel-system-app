@@ -24,7 +24,10 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70 p-4 backdrop-blur-sm"
+      // Fondo del scrim SIEMPRE oscuro (no usa var(--color-ink), que en modo
+      // claro se vuelve un tono crema) — un modal necesita apagar lo de
+      // atrás sin importar el tema activo.
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div

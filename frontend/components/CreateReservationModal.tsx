@@ -189,7 +189,7 @@ export function CreateReservationModal({
       <button
         onClick={submit}
         disabled={submitting}
-        className="mt-4 w-full rounded-lg bg-brass py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
+        className="mt-4 w-full rounded-lg bg-brass py-2 text-sm font-semibold text-onbrass transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
       >
         {submitting ? "Creando…" : "Crear reserva"}
       </button>

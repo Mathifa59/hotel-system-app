@@ -13,6 +13,13 @@
   --color-parchment: #f3ede1;
   --color-parchment-dim: #b8ad9c;
 
+  /* Texto/ícono oscuro fijo para usar SOBRE fondos claros/de acento
+     (botones bg-brass, insignias bg-room-*) — a diferencia de --color-ink,
+     este NUNCA cambia entre temas, porque su rol no es "fondo de página"
+     sino "que el texto se lea encima de algo brillante". Ver .menu-panel
+     más abajo para el mismo razonamiento aplicado a otro caso. */
+  --color-onbrass: #14110d;
+
   /* Estados de cuarto — colores con propósito, cada uno distinguible a simple vista */
   --color-room-available: #4ade80;
   --color-room-occupied: #6e9bf4;
@@ -43,6 +50,35 @@
     background: var(--color-brass);
     color: var(--color-ink);
   }
+}
+
+/* ── Modo claro ──
+   Mismos nombres de token que el tema oscuro de @theme arriba — todas las
+   utilidades (bg-ink, text-parchment, border-border-warm, bg-brass…) ya
+   están generadas referenciando var(--color-*), así que sobreescribir el
+   valor de la variable acá basta para "reteñir" toda la app sin tocar cada
+   componente. Paleta tomada del sitio público (verde salvia + tostado sobre
+   crema) para que ambos productos de la marca se sientan de la misma
+   familia. CSS plano sin @layer para que gane siempre sobre las utilidades
+   de Tailwind (mismo motivo que .menu-panel/.glass-panel más abajo) — un
+   :root[data-theme] normal ya alcanzaría por especificidad, pero así queda
+   consistente con el resto del archivo. */
+:root[data-theme="light"] {
+  --color-ink: #efe3c6;
+  --color-ink-soft: #e6d8b4;
+  --color-surface: #fbf7ee;
+  --color-surface-raised: #ffffff;
+  --color-border-warm: #d9c69c;
+
+  /* El dorado original (#c9a35f) es casi tan claro como el crema de fondo —
+     acá se oscurece para que siga leyéndose como texto/acento (nav activo,
+     bordes de foco) sin perder el tono metálico. El valor original pasa a
+     ser el estado "bright" (hover/activo), igual que hacía de base. */
+  --color-brass: #a3792f;
+  --color-brass-bright: #c9a35f;
+
+  --color-parchment: #241f16;
+  --color-parchment-dim: #6b6151;
 }
 
 @layer utilities {

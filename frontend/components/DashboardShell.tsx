@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { NotificationBell } from "./NotificationBell";
 import { Logo } from "./Logo";
 import { CurrencyToggle } from "./CurrencyToggle";
+import { ThemeToggle } from "./ThemeToggle";
 
 type NavItem = { href: string; label: string };
 
@@ -53,6 +54,7 @@ export function DashboardShell({
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            <ThemeToggle />
             <CurrencyToggle />
             <span
               className="flex items-center gap-1.5 text-[11px] text-parchment-dim"

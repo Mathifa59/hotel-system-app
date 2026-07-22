@@ -269,7 +269,7 @@ export function RoomDetailModal({
                     <button
                       onClick={saveInfo}
                       disabled={savingInfo || !number}
-                      className="flex-1 rounded-lg bg-brass py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
+                      className="flex-1 rounded-lg bg-brass py-2 text-sm font-semibold text-onbrass transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
                     >
                       {savingInfo ? "Guardando…" : "Guardar"}
                     </button>
@@ -296,7 +296,7 @@ export function RoomDetailModal({
                         onClose();
                         router.push(`/reception/reservas?openReservation=1&roomId=${room.id}`);
                       }}
-                      className="rounded-lg bg-brass px-3 py-1.5 text-xs font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright"
+                      className="rounded-lg bg-brass px-3 py-1.5 text-xs font-semibold text-onbrass transition active:scale-[0.98] hover:bg-brass-bright"
                     >
                       Sí, crear reserva
                     </button>
@@ -349,7 +349,7 @@ export function RoomDetailModal({
               <button
                 onClick={markClean}
                 disabled={markingClean || room.status === "clean"}
-                className="w-full rounded-lg bg-brass py-2.5 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
+                className="w-full rounded-lg bg-brass py-2.5 text-sm font-semibold text-onbrass transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
               >
                 {markingClean
                   ? "Marcando…"
@@ -386,7 +386,7 @@ export function RoomDetailModal({
             <button
               onClick={createRequest}
               disabled={submitting}
-              className="w-full rounded-lg bg-brass py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
+              className="w-full rounded-lg bg-brass py-2 text-sm font-semibold text-onbrass transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
             >
               {submitting ? "Creando…" : "Crear solicitud"}
             </button>
@@ -572,7 +572,7 @@ function MinibarManager({ room, token }: { room: Room; token: string }) {
           <button
             onClick={registerConsumption}
             disabled={!reservationId || consumingNow || Object.values(consumeQty).every((q) => !q)}
-            className="mb-4 w-full rounded-lg bg-brass py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
+            className="mb-4 w-full rounded-lg bg-brass py-2 text-sm font-semibold text-onbrass transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
           >
             {consumingNow ? "Registrando…" : "Registrar consumo"}
           </button>

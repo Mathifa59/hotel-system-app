@@ -132,7 +132,7 @@ export function CheckoutModal({
 
           <button
             onClick={goToPayment}
-            className="mt-4 w-full rounded-lg bg-brass py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright"
+            className="mt-4 w-full rounded-lg bg-brass py-2 text-sm font-semibold text-onbrass transition active:scale-[0.98] hover:bg-brass-bright"
           >
             Continuar a registrar el pago
           </button>
@@ -210,7 +210,7 @@ export function CheckoutModal({
             <button
               onClick={confirmCheckout}
               disabled={confirming}
-              className="flex-1 rounded-lg bg-brass py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
+              className="flex-1 rounded-lg bg-brass py-2 text-sm font-semibold text-onbrass transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
             >
               {confirming ? "Confirmando…" : "Confirmar pago y check-out"}
             </button>

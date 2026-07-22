@@ -146,7 +146,7 @@ export default function FrigobarPage() {
             <button
               onClick={addProduct}
               disabled={!name || !pricePen || !priceUsd || !cost}
-              className="w-full rounded-lg bg-brass py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
+              className="w-full rounded-lg bg-brass py-2 text-sm font-semibold text-onbrass transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
             >
               Agregar
             </button>

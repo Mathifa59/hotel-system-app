@@ -112,7 +112,7 @@ export function SiteRequestsPanel({
             <button
               onClick={() => confirm(r.id)}
               disabled={busy === r.id}
-              className="rounded-lg bg-brass px-3 py-1.5 text-xs font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
+              className="rounded-lg bg-brass px-3 py-1.5 text-xs font-semibold text-onbrass transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
             >
               Confirmar
             </button>

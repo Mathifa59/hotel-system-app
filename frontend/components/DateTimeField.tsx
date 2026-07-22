@@ -148,7 +148,7 @@ export function DateTimeField({
                     !inMonth
                       ? "text-parchment-dim/30 hover:text-parchment-dim/60"
                       : isSelected
-                        ? "bg-brass font-semibold text-ink"
+                        ? "bg-brass font-semibold text-onbrass"
                         : isToday
                           ? "border border-brass/50 text-parchment"
                           : "text-parchment hover:bg-ink/40"

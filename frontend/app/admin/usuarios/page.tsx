@@ -57,7 +57,7 @@ export default function UsersPage() {
         <h1 className="font-display text-2xl italic text-parchment">Usuarios</h1>
         <button
           onClick={() => setCreating(true)}
-          className="rounded-lg bg-brass px-4 py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright"
+          className="rounded-lg bg-brass px-4 py-2 text-sm font-semibold text-onbrass transition active:scale-[0.98] hover:bg-brass-bright"
         >
           + Nuevo empleado
         </button>
@@ -158,7 +158,7 @@ function ResetPasswordModal({
           <button
             onClick={submit}
             disabled={submitting || password.length < 4}
-            className="w-full rounded-lg bg-brass py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
+            className="w-full rounded-lg bg-brass py-2 text-sm font-semibold text-onbrass transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
           >
             {submitting ? "Guardando…" : "Guardar contraseña nueva"}
           </button>
@@ -243,7 +243,7 @@ function CreateUserModal({
       <button
         onClick={submit}
         disabled={submitting || !name || !email || !password}
-        className="w-full rounded-lg bg-brass py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
+        className="w-full rounded-lg bg-brass py-2 text-sm font-semibold text-onbrass transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
       >
         {submitting ? "Creando…" : "Crear empleado"}
       </button>

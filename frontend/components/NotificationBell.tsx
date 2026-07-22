@@ -67,7 +67,7 @@ export function NotificationBell({ token }: { token: string }) {
             <path d="M12 2a6 6 0 0 0-6 6v3.1c0 .9-.36 1.77-1 2.4L4 14.5V16h16v-1.5l-1-1c-.64-.63-1-1.5-1-2.4V8a6 6 0 0 0-6-6Zm0 20a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Z" />
           </svg>
           {unreadCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-room-maintenance px-1 text-[10px] font-bold text-ink">
+            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-room-maintenance px-1 text-[10px] font-bold text-onbrass">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}

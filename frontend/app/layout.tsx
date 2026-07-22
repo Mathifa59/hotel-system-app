@@ -3,8 +3,19 @@ import { Fraunces, Archivo, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
 import { CurrencyProvider } from "@/lib/currency";
+import { ThemeProvider } from "@/lib/theme";
 import { ToastProvider } from "@/lib/toast";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+
+// Aplica el tema guardado ANTES de la primera pintura — sin esto, la página
+// siempre nace en modo oscuro (el default del <body>) y recién cambia a
+// claro cuando React hidrata, provocando un parpadeo visible en cada carga.
+const THEME_INIT_SCRIPT = `
+try {
+  var t = localStorage.getItem("apu_gestion_theme");
+  if (t === "light") document.documentElement.setAttribute("data-theme", "light");
+} catch (e) {}
+`;
 
 const fraunces = Fraunces({
   variable: "--font-display",
@@ -53,12 +64,15 @@ export default function RootLayout({
       className={`${fraunces.variable} ${archivo.variable} ${plexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-ink text-parchment font-ui">
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <ServiceWorkerRegister />
-        <ToastProvider>
-          <CurrencyProvider>
-            <AuthProvider>{children}</AuthProvider>
-          </CurrencyProvider>
-        </ToastProvider>
+        <ThemeProvider>
+          <ToastProvider>
+            <CurrencyProvider>
+              <AuthProvider>{children}</AuthProvider>
+            </CurrencyProvider>
+          </ToastProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

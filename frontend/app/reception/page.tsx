@@ -84,7 +84,7 @@ export default function ReceptionRoomsPage() {
         <h1 className="font-display text-2xl italic text-parchment">Mapa de cuartos</h1>
         <button
           onClick={() => setCreating(true)}
-          className="rounded-lg bg-brass px-4 py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright"
+          className="rounded-lg bg-brass px-4 py-2 text-sm font-semibold text-onbrass transition active:scale-[0.98] hover:bg-brass-bright"
         >
           + Nueva reserva
         </button>

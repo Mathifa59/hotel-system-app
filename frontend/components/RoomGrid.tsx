@@ -39,7 +39,7 @@ export function RoomGrid({
                   {changedRoomNumbers?.has(room.number) && (
                     <span
                       title="Estado actualizado"
-                      className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-brass text-ink shadow-md shadow-black/30"
+                      className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-brass text-onbrass shadow-md shadow-black/30"
                     >
                       <span className="absolute inset-0 animate-ping rounded-full bg-brass/70" />
                       <svg viewBox="0 0 24 24" className="relative h-3.5 w-3.5" fill="currentColor">

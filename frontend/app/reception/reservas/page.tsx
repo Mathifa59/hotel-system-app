@@ -140,7 +140,7 @@ export default function ReservationsPage() {
           )}
           <button
             onClick={() => setCreating(true)}
-            className="rounded-lg bg-brass px-4 py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright"
+            className="rounded-lg bg-brass px-4 py-2 text-sm font-semibold text-onbrass transition active:scale-[0.98] hover:bg-brass-bright"
           >
             + Nueva reserva
           </button>
@@ -197,7 +197,7 @@ export default function ReservationsPage() {
                     onClick={() => checkin(r.id)}
                     disabled={busy === r.id || !r.room_id}
                     title={!r.room_id ? "Asigna un cuarto primero (Editar)" : undefined}
-                    className="rounded-lg bg-brass px-3 py-1.5 text-xs font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
+                    className="rounded-lg bg-brass px-3 py-1.5 text-xs font-semibold text-onbrass transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
                   >
                     Check-in
                   </button>
@@ -435,7 +435,7 @@ function EditReservationModal({
       <button
         onClick={submit}
         disabled={submitting}
-        className="w-full rounded-lg bg-brass py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
+        className="w-full rounded-lg bg-brass py-2 text-sm font-semibold text-onbrass transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
       >
         {submitting ? "Guardando…" : "Guardar cambios"}
       </button>

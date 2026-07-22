@@ -79,7 +79,7 @@ export default function ReceptionChargesPage() {
         <h1 className="font-display text-2xl italic text-parchment">Cargos</h1>
         <button
           onClick={() => setCreating(true)}
-          className="rounded-lg bg-brass px-4 py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright"
+          className="rounded-lg bg-brass px-4 py-2 text-sm font-semibold text-onbrass transition active:scale-[0.98] hover:bg-brass-bright"
         >
           + Nuevo cargo
         </button>
@@ -115,7 +115,7 @@ export default function ReceptionChargesPage() {
                 <button
                   onClick={() => bill(c.id)}
                   disabled={busy === c.id}
-                  className="rounded-lg bg-brass px-3 py-1.5 text-xs font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
+                  className="rounded-lg bg-brass px-3 py-1.5 text-xs font-semibold text-onbrass transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
                 >
                   Cobrar
                 </button>
