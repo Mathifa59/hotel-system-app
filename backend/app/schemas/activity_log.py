@@ -1,21 +1,10 @@
-from datetime import datetime
-
 from pydantic import BaseModel
 
-from app.schemas.charge import ChargeOut
-from app.schemas.cleaning_request import CleaningRequestOut
 from app.schemas.reservation import ReservationOut
 
 
-class ActivityLogOut(BaseModel):
-    action: str
-    meta: dict | None
-    actor_name: str | None
-    created_at: datetime
-
-
 class RoomHistory(BaseModel):
+    # Antes mezclaba reservas + limpiezas + cargos + cada entrada cruda del
+    # log de actividad en una sola lista — demasiado ruido para ser útil en
+    # la práctica. Ahora es solo el historial de reservas del cuarto.
     reservations: list[ReservationOut]
-    cleaning_requests: list[CleaningRequestOut]
-    charges: list[ChargeOut]
-    activity: list[ActivityLogOut]

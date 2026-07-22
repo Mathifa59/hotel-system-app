@@ -43,8 +43,12 @@ class RoomTypeRateOut(BaseModel):
     type: RoomType
     price_pen: float
     price_usd: float
+    price_pen_promo: float | None
+    price_usd_promo: float | None
 
 
 class RoomTypeRateUpdate(BaseModel):
     price_pen: float
     price_usd: float
+    price_pen_promo: float | None = None
+    price_usd_promo: float | None = None

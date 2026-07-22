@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useRealtime } from "@/lib/ws";
 import { useCurrency } from "@/lib/currency";
+import { useToast } from "@/lib/toast";
 import { api } from "@/lib/api";
 import type { IncomeReport, MinibarReport, OccupancyReport, RoomStatus } from "@/lib/types";
 import { chargeTypeLabel, formatMoney, roomStatusColor, roomStatusLabel } from "@/lib/labels";
@@ -31,6 +32,7 @@ export default function ReportsPage() {
   const { token } = useAuth();
   const connected = useRealtime(token, () => {});
   const { currency } = useCurrency();
+  const toast = useToast();
   const [occupancy, setOccupancy] = useState<OccupancyReport | null>(null);
   const [minibar, setMinibar] = useState<MinibarReport | null>(null);
   const [income, setIncome] = useState<IncomeReport | null>(null);
@@ -38,9 +40,15 @@ export default function ReportsPage() {
 
   useEffect(() => {
     if (!token) return;
-    api.get<OccupancyReport>("/reports/occupancy", token).then(setOccupancy);
-    api.get<MinibarReport>("/reports/minibar", token).then(setMinibar);
-  }, [token]);
+    api
+      .get<OccupancyReport>("/reports/occupancy", token)
+      .then(setOccupancy)
+      .catch(() => toast.error("No se pudo cargar el reporte de ocupación."));
+    api
+      .get<MinibarReport>("/reports/minibar", token)
+      .then(setMinibar)
+      .catch(() => toast.error("No se pudo cargar el reporte de frigobar."));
+  }, [token, toast]);
 
   useEffect(() => {
     if (!token) return;
@@ -48,8 +56,11 @@ export default function ReportsPage() {
       start: `${range.start}T00:00:00`,
       end: `${range.end}T23:59:59`,
     });
-    api.get<IncomeReport>(`/reports/income?${params.toString()}`, token).then(setIncome);
-  }, [token, range]);
+    api
+      .get<IncomeReport>(`/reports/income?${params.toString()}`, token)
+      .then(setIncome)
+      .catch(() => toast.error("No se pudo cargar el reporte de ingresos."));
+  }, [token, range, toast]);
 
   const maxQuantity = minibar ? Math.max(1, ...minibar.items.map((i) => i.total_quantity)) : 1;
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useRealtime } from "@/lib/ws";
 import { useCurrency } from "@/lib/currency";
+import { useToast } from "@/lib/toast";
 import { api } from "@/lib/api";
 import type { Charge, ChargeStatus, RealtimeEvent } from "@/lib/types";
 import { chargeStatusLabel, formatDateTime, formatMoney } from "@/lib/labels";
@@ -27,6 +28,7 @@ const FILTERS: { value: ChargeStatus | "all"; label: string }[] = [
 export default function ReceptionChargesPage() {
   const { token } = useAuth();
   const { currency } = useCurrency();
+  const toast = useToast();
   const [charges, setCharges] = useState<Charge[]>([]);
   const [filter, setFilter] = useState<ChargeStatus | "all">("approved");
   const [busy, setBusy] = useState<string | null>(null);
@@ -36,8 +38,11 @@ export default function ReceptionChargesPage() {
   const load = useCallback(() => {
     if (!token) return;
     const query = filter === "all" ? "" : `?status=${filter}`;
-    api.get<Charge[]>(`/charges${query}`, token).then(setCharges);
-  }, [token, filter]);
+    api
+      .get<Charge[]>(`/charges${query}`, token)
+      .then(setCharges)
+      .catch(() => toast.error("No se pudieron cargar los cargos."));
+  }, [token, filter, toast]);
 
   useEffect(load, [load]);
 

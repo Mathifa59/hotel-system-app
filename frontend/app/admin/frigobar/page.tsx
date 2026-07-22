@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useRealtime } from "@/lib/ws";
 import { useCurrency } from "@/lib/currency";
+import { useToast } from "@/lib/toast";
 import { api, ApiError } from "@/lib/api";
 import type { MinibarProduct, Room, StockItem } from "@/lib/types";
 import { formatMoney } from "@/lib/labels";
@@ -22,6 +23,7 @@ export default function FrigobarPage() {
   const { token } = useAuth();
   const connected = useRealtime(token, () => {});
   const { currency } = useCurrency();
+  const toast = useToast();
 
   const [products, setProducts] = useState<MinibarProduct[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -37,21 +39,30 @@ export default function FrigobarPage() {
 
   useEffect(() => {
     if (!token) return;
-    api.get<MinibarProduct[]>("/minibar/products", token).then(setProducts);
-    api.get<Room[]>("/rooms", token).then((all) => {
-      const withMinibar = all.filter((r) => r.has_minibar);
-      setRooms(withMinibar);
-      if (withMinibar.length > 0) setRoomId(withMinibar[0].id);
-    });
-  }, [token]);
+    api
+      .get<MinibarProduct[]>("/minibar/products", token)
+      .then(setProducts)
+      .catch(() => toast.error("No se pudo cargar el catálogo de frigobar."));
+    api
+      .get<Room[]>("/rooms", token)
+      .then((all) => {
+        const withMinibar = all.filter((r) => r.has_minibar);
+        setRooms(withMinibar);
+        if (withMinibar.length > 0) setRoomId(withMinibar[0].id);
+      })
+      .catch(() => toast.error("No se pudieron cargar los cuartos."));
+  }, [token, toast]);
 
   useEffect(() => {
     if (!token || !roomId) return;
-    api.get<StockItem[]>(`/minibar/stock?room_id=${roomId}`, token).then((items) => {
-      setStock(items);
-      setQuantities(Object.fromEntries(items.map((i) => [i.product_id, i.quantity])));
-    });
-  }, [token, roomId]);
+    api
+      .get<StockItem[]>(`/minibar/stock?room_id=${roomId}`, token)
+      .then((items) => {
+        setStock(items);
+        setQuantities(Object.fromEntries(items.map((i) => [i.product_id, i.quantity])));
+      })
+      .catch(() => toast.error("No se pudo cargar el stock del cuarto."));
+  }, [token, roomId, toast]);
 
   async function addProduct() {
     if (!token) return;

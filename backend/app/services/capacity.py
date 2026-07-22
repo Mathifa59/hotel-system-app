@@ -9,4 +9,5 @@ ROOM_CAPACITY: dict[RoomType, int] = {
     RoomType.doble_deluxe: 2,
     RoomType.doble_deluxe_twin: 2,
     RoomType.deluxe_extragrande: 2,
+    RoomType.triple: 3,
 }

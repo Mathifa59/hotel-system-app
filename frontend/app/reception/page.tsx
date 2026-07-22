@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useRealtime } from "@/lib/ws";
+import { useToast } from "@/lib/toast";
 import { api } from "@/lib/api";
 import type { RealtimeEvent, Reservation, Room } from "@/lib/types";
 import { DashboardShell } from "@/components/DashboardShell";
@@ -17,6 +18,7 @@ const NAV = [
 
 export default function ReceptionRoomsPage() {
   const { token } = useAuth();
+  const toast = useToast();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selected, setSelected] = useState<Room | null>(null);
   const [changedRoomNumbers, setChangedRoomNumbers] = useState<Set<string>>(new Set());
@@ -24,22 +26,28 @@ export default function ReceptionRoomsPage() {
 
   const load = useCallback(() => {
     if (!token) return;
-    api.get<Room[]>("/rooms", token).then((roomList) => {
-      setRooms(roomList);
-      const byId = Object.fromEntries(roomList.map((r) => [r.id, r.number]));
-      api.get<Reservation[]>("/reservations?status=active", token).then((active) => {
-        const now = Date.now();
-        setOverdueRoomNumbers(
-          new Set(
-            active
-              .filter((r): r is typeof r & { room_id: string } => r.room_id !== null && new Date(r.check_out).getTime() < now)
-              .map((r) => byId[r.room_id])
-              .filter(Boolean)
-          )
-        );
-      });
-    });
-  }, [token]);
+    api
+      .get<Room[]>("/rooms", token)
+      .then((roomList) => {
+        setRooms(roomList);
+        const byId = Object.fromEntries(roomList.map((r) => [r.id, r.number]));
+        api
+          .get<Reservation[]>("/reservations?status=active", token)
+          .then((active) => {
+            const now = Date.now();
+            setOverdueRoomNumbers(
+              new Set(
+                active
+                  .filter((r): r is typeof r & { room_id: string } => r.room_id !== null && new Date(r.check_out).getTime() < now)
+                  .map((r) => byId[r.room_id])
+                  .filter(Boolean)
+              )
+            );
+          })
+          .catch(() => toast.error("No se pudieron cargar las señales de salida vencida."));
+      })
+      .catch(() => toast.error("No se pudo cargar el mapa de cuartos."));
+  }, [token, toast]);
 
   useEffect(load, [load]);
 

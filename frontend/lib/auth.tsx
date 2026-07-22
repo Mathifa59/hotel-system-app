@@ -1,10 +1,10 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { api } from "./api";
+import { api, TOKEN_STORAGE_KEY } from "./api";
 import type { Role, User } from "./types";
 
-const STORAGE_KEY = "apu_token";
+const STORAGE_KEY = TOKEN_STORAGE_KEY;
 
 type AuthState = {
   token: string | null;

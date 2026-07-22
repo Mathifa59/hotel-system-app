@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useRealtime } from "@/lib/ws";
+import { useToast } from "@/lib/toast";
 import { api, ApiError } from "@/lib/api";
 import type { Role, User } from "@/lib/types";
 import { roleLabel } from "@/lib/labels";
@@ -22,6 +23,7 @@ const ROLES: Role[] = ["admin", "reception", "cleaning"];
 
 export default function UsersPage() {
   const { token, user: me } = useAuth();
+  const toast = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [creating, setCreating] = useState(false);
   const [resetting, setResetting] = useState<User | null>(null);
@@ -29,8 +31,11 @@ export default function UsersPage() {
 
   const load = useCallback(() => {
     if (!token) return;
-    api.get<User[]>("/users", token).then(setUsers);
-  }, [token]);
+    api
+      .get<User[]>("/users", token)
+      .then(setUsers)
+      .catch(() => toast.error("No se pudieron cargar los usuarios."));
+  }, [token, toast]);
 
   useEffect(load, [load]);
   const connected = useRealtime(token, () => {});

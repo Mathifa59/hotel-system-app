@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -13,6 +14,7 @@ from app.models.enums import (
     ChargeStatus,
     ChargeType,
     CleaningRequestType,
+    RatePlan,
     ReservationSource,
     ReservationStatus,
     RoomStatus,
@@ -33,6 +35,15 @@ router = APIRouter(prefix="/reservations", tags=["reservations"])
 
 def _nights(reservation: Reservation) -> int:
     return max((reservation.check_out.date() - reservation.check_in.date()).days, 1)
+
+
+def _rate_for_plan(rate: RoomTypeRate, plan: RatePlan) -> tuple[Decimal, Decimal]:
+    """Precio por noche (PEN, USD) según la tarifa elegida para la reserva.
+    Si el tipo de cuarto no tiene tarifa promocional cargada (ej. Doble
+    Deluxe - 2 camas), cae de vuelta a la profesional en vez de cobrar 0."""
+    if plan == RatePlan.promotional and rate.price_pen_promo is not None and rate.price_usd_promo is not None:
+        return Decimal(rate.price_pen_promo), Decimal(rate.price_usd_promo)
+    return Decimal(rate.price_pen), Decimal(rate.price_usd)
 
 
 @router.get("", response_model=list[ReservationOut])
@@ -90,7 +101,21 @@ def create_reservation(
 
     reservation = Reservation(**data.model_dump(), created_by=current_user.id)
     db.add(reservation)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError:
+        # Red de seguridad contra la condición de carrera: dos requests
+        # concurrentes pueden pasar el chequeo de arriba (SELECT) antes de
+        # que cualquiera de las dos llegue a insertar — el constraint
+        # EXCLUDE de la base (ver migración c7d2f4a8e1b6) es lo único que de
+        # verdad lo impide. Esto solo se dispara en ese caso raro; el
+        # chequeo manual de arriba ya cubre el caso normal con un mensaje
+        # más específico (con el nombre del huésped que ya tiene el cuarto).
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"El cuarto {room.number} acaba de ser reservado para esas fechas por otra persona — actualiza e intenta de nuevo",
+        )
     log_activity(
         db,
         user_id=current_user.id,
@@ -221,7 +246,17 @@ def update_reservation(
         entity_id=new_room.id if new_room is not None else reservation.id,
         meta={"changed": list(changes.keys())},
     )
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Mismo caso que en create_reservation: red de seguridad de la base
+        # contra una condición de carrera si dos ediciones concurrentes
+        # mueven reservas distintas al mismo cuarto para fechas que chocan.
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ese cuarto acaba de quedar ocupado para esas fechas por otra reserva — actualiza e intenta de nuevo",
+        )
     db.refresh(reservation)
 
     for rm in moved_rooms:
@@ -367,8 +402,9 @@ def reservation_folio(
     room = db.get(Room, reservation.room_id)
     rate = db.get(RoomTypeRate, room.type)
     nights = _nights(reservation)
-    room_charge_pen = Decimal(rate.price_pen) * nights
-    room_charge_usd = Decimal(rate.price_usd) * nights
+    pen_rate, usd_rate = _rate_for_plan(rate, reservation.rate_plan)
+    room_charge_pen = pen_rate * nights
+    room_charge_usd = usd_rate * nights
 
     charges = (
         db.query(Charge)
@@ -381,6 +417,7 @@ def reservation_folio(
 
     return ReservationFolio(
         nights=nights,
+        rate_plan=reservation.rate_plan,
         room_charge_pen=room_charge_pen,
         room_charge_usd=room_charge_usd,
         charges=charges,
@@ -411,13 +448,15 @@ def checkout(
     room = db.get(Room, reservation.room_id)
     rate = db.get(RoomTypeRate, room.type)
     nights = _nights(reservation)
+    pen_rate, usd_rate = _rate_for_plan(rate, reservation.rate_plan)
+    plan_label = "Promocional" if reservation.rate_plan == RatePlan.promotional else "Profesional"
 
     room_charge = Charge(
         reservation_id=reservation.id,
         type=ChargeType.room,
-        description=f"Alojamiento — {nights} noche(s)",
-        amount_pen=Decimal(rate.price_pen) * nights,
-        amount_usd=Decimal(rate.price_usd) * nights,
+        description=f"Alojamiento — {nights} noche(s) ({plan_label})",
+        amount_pen=pen_rate * nights,
+        amount_usd=usd_rate * nights,
         status=ChargeStatus.approved,
         created_by=current_user.id,
     )

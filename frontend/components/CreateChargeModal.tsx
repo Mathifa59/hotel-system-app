@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
+import { useToast } from "@/lib/toast";
 import type { Charge, ChargeType, Reservation } from "@/lib/types";
 import { chargeTypeLabel } from "@/lib/labels";
 import { Modal } from "./Modal";
@@ -17,6 +18,7 @@ export function CreateChargeModal({
   onClose: () => void;
   onCreated: (charge: Charge) => void;
 }) {
+  const toast = useToast();
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [reservationId, setReservationId] = useState("");
   const [type, setType] = useState<ChargeType>("damage");
@@ -27,11 +29,14 @@ export function CreateChargeModal({
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    api.get<Reservation[]>("/reservations?status=active", token).then((list) => {
-      setReservations(list);
-      setReservationId(list[0]?.id ?? "");
-    });
-  }, [token]);
+    api
+      .get<Reservation[]>("/reservations?status=active", token)
+      .then((list) => {
+        setReservations(list);
+        setReservationId(list[0]?.id ?? "");
+      })
+      .catch(() => toast.error("No se pudieron cargar las reservas activas."));
+  }, [token, toast]);
 
   async function submit() {
     setSubmitting(true);
@@ -43,9 +48,12 @@ export function CreateChargeModal({
         token
       );
       onCreated(charge);
+      toast.success("Cargo creado correctamente.");
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo crear el cargo");
+      const msg = err instanceof ApiError ? err.message : "No se pudo crear el cargo";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }

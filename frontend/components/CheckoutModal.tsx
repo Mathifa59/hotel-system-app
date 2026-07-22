@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useCurrency } from "@/lib/currency";
-import { chargeStatusLabel, chargeTypeLabel, formatMoney, paymentMethodLabel } from "@/lib/labels";
+import { useToast } from "@/lib/toast";
+import { chargeStatusLabel, chargeTypeLabel, formatMoney, paymentMethodLabel, ratePlanLabel } from "@/lib/labels";
 import type { PaymentMethod, Reservation, ReservationFolio } from "@/lib/types";
+import { DateTimeField } from "./DateTimeField";
 import { Modal } from "./Modal";
 
 const PAYMENT_METHODS: PaymentMethod[] = ["cash", "card", "transfer"];
@@ -26,6 +28,7 @@ export function CheckoutModal({
   onConfirmed: (updated: Reservation) => void;
 }) {
   const { currency } = useCurrency();
+  const toast = useToast();
   const [folio, setFolio] = useState<ReservationFolio | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -73,6 +76,7 @@ export function CheckoutModal({
         token
       );
       onConfirmed(updated);
+      toast.success(`Check-out de ${reservation.guest_name} completado.`);
       onClose();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo confirmar el check-out");
@@ -89,7 +93,10 @@ export function CheckoutModal({
       {folio && step === "folio" && (
         <>
           <div className="mb-3 flex items-center justify-between rounded-lg border border-border-warm/60 px-3 py-2 text-sm">
-            <span className="text-parchment">Alojamiento — {folio.nights} noche(s)</span>
+            <span className="text-parchment">
+              Alojamiento — {folio.nights} noche(s)
+              <span className="ml-1.5 text-[11px] text-parchment-dim">({ratePlanLabel[folio.rate_plan]})</span>
+            </span>
             <span className="font-data text-brass">
               {formatMoney({ pen: folio.room_charge_pen, usd: folio.room_charge_usd }, currency)}
             </span>
@@ -188,12 +195,7 @@ export function CheckoutModal({
           <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">
             Fecha y hora del pago
           </label>
-          <input
-            type="datetime-local"
-            value={paidAt}
-            onChange={(e) => setPaidAt(e.target.value)}
-            className="mb-4 w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
-          />
+          <DateTimeField value={paidAt} onChange={setPaidAt} className="mb-4" />
 
           {error && <p className="mb-3 text-sm text-room-maintenance">{error}</p>}
 

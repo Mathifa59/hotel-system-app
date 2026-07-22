@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useRealtime } from "@/lib/ws";
 import { useCurrency } from "@/lib/currency";
+import { useToast } from "@/lib/toast";
 import { api } from "@/lib/api";
 import type { CleaningRequest, MinibarProduct, RealtimeEvent, Reservation, Room, StockItem } from "@/lib/types";
 import { cleaningTypeLabel, formatMoney } from "@/lib/labels";
@@ -16,6 +17,7 @@ const NAV = [
 
 export default function CleaningPage() {
   const { token } = useAuth();
+  const toast = useToast();
   const [rooms, setRooms] = useState<Record<string, Room>>({});
   const [available, setAvailable] = useState<CleaningRequest[]>([]);
   const [mine, setMine] = useState<CleaningRequest[]>([]);
@@ -23,12 +25,21 @@ export default function CleaningPage() {
 
   const load = useCallback(() => {
     if (!token) return;
-    api.get<Room[]>("/rooms", token).then((list) => {
-      setRooms(Object.fromEntries(list.map((r) => [r.id, r])));
-    });
-    api.get<CleaningRequest[]>("/housekeeping/requests?status=pending", token).then(setAvailable);
-    api.get<CleaningRequest[]>("/housekeeping/requests?assigned_to=me&status=in_progress", token).then(setMine);
-  }, [token]);
+    api
+      .get<Room[]>("/rooms", token)
+      .then((list) => {
+        setRooms(Object.fromEntries(list.map((r) => [r.id, r])));
+      })
+      .catch(() => toast.error("No se pudieron cargar los cuartos."));
+    api
+      .get<CleaningRequest[]>("/housekeeping/requests?status=pending", token)
+      .then(setAvailable)
+      .catch(() => toast.error("No se pudieron cargar las tareas disponibles."));
+    api
+      .get<CleaningRequest[]>("/housekeeping/requests?assigned_to=me&status=in_progress", token)
+      .then(setMine)
+      .catch(() => toast.error("No se pudieron cargar tus tareas."));
+  }, [token, toast]);
 
   useEffect(load, [load]);
 
@@ -193,14 +204,25 @@ function MinibarPanel({ room, token, reservationId: fixedReservationId }: { room
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const toast = useToast();
+
   useEffect(() => {
-    api.get<MinibarProduct[]>("/minibar/products", token).then(setProducts);
-    api.get<StockItem[]>(`/minibar/stock?room_id=${room.id}`, token).then(setStock);
+    api
+      .get<MinibarProduct[]>("/minibar/products", token)
+      .then(setProducts)
+      .catch(() => toast.error("No se pudo cargar el catálogo de frigobar."));
+    api
+      .get<StockItem[]>(`/minibar/stock?room_id=${room.id}`, token)
+      .then(setStock)
+      .catch(() => toast.error("No se pudo cargar el stock del frigobar."));
     if (fixedReservationId) return;
-    api.get<Reservation[]>(`/reservations?room_id=${room.id}`, token).then((list) => {
-      setReservationId(list[0]?.id ?? null);
-    });
-  }, [room.id, token, fixedReservationId]);
+    api
+      .get<Reservation[]>(`/reservations?room_id=${room.id}`, token)
+      .then((list) => {
+        setReservationId(list[0]?.id ?? null);
+      })
+      .catch(() => toast.error("No se pudo encontrar la reserva de este cuarto."));
+  }, [room.id, token, fixedReservationId, toast]);
 
   function setQuantity(productId: string, value: number, max: number) {
     setQty((prev) => ({ ...prev, [productId]: Math.max(0, Math.min(max, value)) }));

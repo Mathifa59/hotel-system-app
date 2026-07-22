@@ -1,22 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { useCurrency } from "@/lib/currency";
-import {
-  chargeStatusLabel,
-  chargeTypeLabel,
-  cleaningStatusLabel,
-  cleaningTypeLabel,
-  formatDateTime,
-  formatMoney,
-  paymentMethodLabel,
-  reservationStatusLabel,
-  roomStatusLabel,
-  roomTypeLabel,
-} from "@/lib/labels";
+import { useToast } from "@/lib/toast";
+import { cleaningTypeLabel, formatMoney, roomStatusLabel, roomTypeLabel } from "@/lib/labels";
 import type {
-  ActivityLogEntry,
   CleaningRequest,
   CleaningRequestType,
   MinibarProduct,
@@ -29,101 +19,11 @@ import type {
 } from "@/lib/types";
 import { Modal } from "./Modal";
 import { RoomBadge } from "./RoomBadge";
+import { RoomReservationHistory } from "./RoomReservationHistory";
 
 const STATUSES: RoomStatus[] = ["available", "occupied", "cleaning", "clean", "maintenance", "do_not_disturb"];
 const REQUEST_TYPES: CleaningRequestType[] = ["full", "sheets_only", "towels_only", "partial", "do_not_enter"];
-const ROOM_TYPES: RoomType[] = ["individual", "doble", "doble_deluxe", "doble_deluxe_twin", "deluxe_extragrande"];
-
-type TimelineItem = { date: string; label: string; detail?: string };
-
-// El backend registra acciones internas como "room.status_changed" — aquí se
-// traducen a algo que un recepcionista o camarista realmente entienda.
-function activityLabel(a: ActivityLogEntry): string {
-  switch (a.action) {
-    case "room.created":
-      return "Cuarto creado";
-    case "room.updated":
-      return "Editó número, piso o tipo del cuarto";
-    case "room.status_changed": {
-      const status = a.meta?.status as RoomStatus | undefined;
-      return status ? `Cuarto cambió a ${roomStatusLabel[status]}` : "Cambió el estado del cuarto";
-    }
-    case "reservation.updated":
-      return "Editó una reserva";
-    case "cleaning.requested": {
-      const requestType = a.meta?.request_type as CleaningRequestType | undefined;
-      return requestType ? `Solicitó limpieza (${cleaningTypeLabel[requestType]})` : "Solicitó limpieza";
-    }
-    case "cleaning.started":
-      return "Tomó la limpieza";
-    case "cleaning.completed":
-      return "Completó la limpieza";
-    case "cleaning.skipped":
-      return "Omitió la limpieza";
-    case "minibar.registered":
-      return "Registró consumo de frigobar";
-    case "minibar_stock.updated": {
-      const product = a.meta?.product as string | undefined;
-      const quantity = a.meta?.quantity as number | undefined;
-      return product ? `Cargó frigobar: ${product} (${quantity ?? "?"} u.)` : "Actualizó el stock de frigobar";
-    }
-    case "checkout.billed": {
-      const nights = a.meta?.nights as number | undefined;
-      return nights ? `Check-out facturado — ${nights} noche(s)` : "Check-out facturado";
-    }
-    case "reservation.paid": {
-      const method = a.meta?.method as string | undefined;
-      const amountPen = a.meta?.amount_pen as string | undefined;
-      return method
-        ? `Pago registrado (${paymentMethodLabel[method as keyof typeof paymentMethodLabel]}) — S/ ${amountPen}`
-        : "Pago registrado";
-    }
-    default:
-      return "Actualización del cuarto";
-  }
-}
-
-function buildTimeline(history: RoomHistory): TimelineItem[] {
-  const items: TimelineItem[] = [];
-
-  for (const r of history.reservations) {
-    items.push({
-      date: r.created_at,
-      label: `Reserva — ${r.guest_name}${r.guest_id_document ? ` (ID ${r.guest_id_document})` : ""}`,
-      detail: `${reservationStatusLabel[r.status]} · ${formatDateTime(r.check_in)} → ${formatDateTime(r.check_out)}`,
-    });
-    if (r.paid_at && r.payment_method) {
-      items.push({
-        date: r.paid_at,
-        label: `Pago de ${r.guest_name} — ${paymentMethodLabel[r.payment_method]}`,
-        detail: `S/ ${r.payment_amount_pen} · $ ${r.payment_amount_usd}`,
-      });
-    }
-  }
-  for (const c of history.cleaning_requests) {
-    items.push({
-      date: c.created_at,
-      label: `Limpieza — ${cleaningTypeLabel[c.request_type]}`,
-      detail: cleaningStatusLabel[c.status],
-    });
-  }
-  for (const c of history.charges) {
-    items.push({
-      date: c.created_at,
-      label: `Cargo — ${c.description}`,
-      detail: `${chargeTypeLabel[c.type]} · ${chargeStatusLabel[c.status]} · S/ ${c.amount_pen}`,
-    });
-  }
-  for (const a of history.activity) {
-    items.push({
-      date: a.created_at,
-      label: activityLabel(a),
-      detail: a.actor_name ? `por ${a.actor_name}` : undefined,
-    });
-  }
-
-  return items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-}
+const ROOM_TYPES: RoomType[] = ["individual", "doble", "doble_deluxe", "doble_deluxe_twin", "deluxe_extragrande", "triple"];
 
 export function RoomDetailModal({
   room,
@@ -146,6 +46,13 @@ export function RoomDetailModal({
   onClose: () => void;
   onUpdated: (room: Room) => void;
 }) {
+  const router = useRouter();
+  const toast = useToast();
+  // Marcar un cuarto "Ocupado" a mano no crea ninguna reserva real por
+  // detrás — antes esto dejaba el cuarto "ocupado" sin ningún huésped
+  // registrado, folio, ni forma de hacer check-out normal. Ahora se
+  // confirma primero si en realidad se quiere dar de alta la reserva.
+  const [confirmingOccupied, setConfirmingOccupied] = useState(false);
   const [requestType, setRequestType] = useState<CleaningRequestType>("full");
   const [requestTypeTouched, setRequestTypeTouched] = useState(false);
   const [notes, setNotes] = useState("");
@@ -220,9 +127,12 @@ export function RoomDetailModal({
     try {
       const updated = await api.patch<Room>(`/rooms/${room.id}/status`, { status }, token);
       onUpdated(updated);
+      toast.success(`Cuarto ${room.number} → ${roomStatusLabel[status]}.`);
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo cambiar el estado");
+      const msg = err instanceof ApiError ? err.message : "No se pudo cambiar el estado";
+      setError(msg);
+      toast.error(msg);
     }
   }
 
@@ -232,9 +142,12 @@ export function RoomDetailModal({
     try {
       const updated = await api.patch<Room>(`/rooms/${room.id}/mark-clean`, undefined, token);
       onUpdated(updated);
+      toast.success(`Cuarto ${room.number} marcado como limpio.`);
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo marcar como limpio");
+      const msg = err instanceof ApiError ? err.message : "No se pudo marcar como limpio";
+      setError(msg);
+      toast.error(msg);
       setMarkingClean(false);
     }
   }
@@ -248,9 +161,12 @@ export function RoomDetailModal({
         { room_id: room.id, request_type: requestType, notes: notes || undefined },
         token
       );
+      toast.success(`Solicitud de limpieza creada para el cuarto ${room.number}.`);
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo crear la solicitud");
+      const msg = err instanceof ApiError ? err.message : "No se pudo crear la solicitud";
+      setError(msg);
+      toast.error(msg);
       setSubmitting(false);
     }
   }
@@ -371,22 +287,54 @@ export function RoomDetailModal({
           {canEditStatus && (
             <div>
               <p className="mb-2 text-xs font-medium uppercase tracking-wide text-parchment-dim">Cambiar estado</p>
-              <div className="flex flex-wrap gap-2">
-                {STATUSES.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => changeStatus(s)}
-                    disabled={s === room.status}
-                    className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
-                      s === room.status
-                        ? "border-brass/50 bg-brass/15 text-brass"
-                        : "border-border-warm text-parchment-dim hover:border-brass/40 hover:text-parchment"
-                    }`}
-                  >
-                    {roomStatusLabel[s]}
-                  </button>
-                ))}
-              </div>
+              {confirmingOccupied ? (
+                <div className="rounded-lg border border-brass/40 bg-brass/10 p-3">
+                  <p className="text-sm text-parchment">¿Desea crear la reserva de este cuarto?</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      onClick={() => {
+                        onClose();
+                        router.push(`/reception/reservas?openReservation=1&roomId=${room.id}`);
+                      }}
+                      className="rounded-lg bg-brass px-3 py-1.5 text-xs font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright"
+                    >
+                      Sí, crear reserva
+                    </button>
+                    <button
+                      onClick={() => {
+                        setConfirmingOccupied(false);
+                        changeStatus("occupied");
+                      }}
+                      className="rounded-lg border border-border-warm px-3 py-1.5 text-xs font-medium text-parchment-dim transition hover:text-parchment"
+                    >
+                      No, solo cambiar estado
+                    </button>
+                    <button
+                      onClick={() => setConfirmingOccupied(false)}
+                      className="rounded-lg px-3 py-1.5 text-xs font-medium text-parchment-dim/70 transition hover:text-parchment-dim"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {STATUSES.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => (s === "occupied" ? setConfirmingOccupied(true) : changeStatus(s))}
+                      disabled={s === room.status}
+                      className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
+                        s === room.status
+                          ? "border-brass/50 bg-brass/15 text-brass"
+                          : "border-border-warm text-parchment-dim hover:border-brass/40 hover:text-parchment"
+                      }`}
+                    >
+                      {roomStatusLabel[s]}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -452,7 +400,7 @@ export function RoomDetailModal({
           onClick={toggleHistory}
           className="text-xs font-medium uppercase tracking-wide text-parchment-dim transition hover:text-brass"
         >
-          {showHistory ? "Ocultar historial completo ↑" : "Ver historial completo ↓"}
+          {showHistory ? "Ocultar historial de reservas ↑" : "Ver historial de reservas ↓"}
         </button>
 
         {/* Sin overflow/max-h propio a propósito: este historial es parte del
@@ -460,21 +408,9 @@ export function RoomDetailModal({
             contenedor con su propia barra de scroll se veía como "doble
             scroll" superpuesto y confundía. */}
         {showHistory && (
-          <div className="mt-3 space-y-2.5">
+          <div className="mt-3">
             {loadingHistory && <p className="text-sm text-parchment-dim">Cargando…</p>}
-            {history &&
-              buildTimeline(history).map((item, i) => (
-                <div key={i} className="border-l border-border-warm pl-3">
-                  <p className="text-xs text-parchment">{item.label}</p>
-                  <p className="text-[11px] text-parchment-dim">
-                    {formatDateTime(item.date)}
-                    {item.detail ? ` · ${item.detail}` : ""}
-                  </p>
-                </div>
-              ))}
-            {history && buildTimeline(history).length === 0 && (
-              <p className="text-sm text-parchment-dim">Sin historial todavía.</p>
-            )}
+            {history && <RoomReservationHistory reservations={history.reservations} />}
           </div>
         )}
       </div>

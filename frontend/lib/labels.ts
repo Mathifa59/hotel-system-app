@@ -4,6 +4,7 @@ import type {
   CleaningRequestStatus,
   CleaningRequestType,
   PaymentMethod,
+  RatePlan,
   ReservationStatus,
   Role,
   RoomStatus,
@@ -41,6 +42,12 @@ export const roomTypeLabel: Record<RoomType, string> = {
   doble_deluxe: "Doble Deluxe",
   doble_deluxe_twin: "Doble Deluxe - 2 camas",
   deluxe_extragrande: "Deluxe con cama extragrande",
+  triple: "Triple",
+};
+
+export const ratePlanLabel: Record<RatePlan, string> = {
+  professional: "Profesional",
+  promotional: "Promocional",
 };
 
 export const cleaningTypeLabel: Record<CleaningRequestType, string> = {

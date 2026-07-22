@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.enums import PaymentMethod, ReservationSource, ReservationStatus, RoomType
+from app.models.enums import PaymentMethod, RatePlan, ReservationSource, ReservationStatus, RoomType
 from app.schemas.charge import ChargeOut
 
 
@@ -16,6 +16,7 @@ class ReservationCreate(BaseModel):
     check_in: datetime
     check_out: datetime
     guests: int = Field(default=1, ge=1)
+    rate_plan: RatePlan = RatePlan.professional
 
 
 class ReservationUpdate(BaseModel):
@@ -27,6 +28,7 @@ class ReservationUpdate(BaseModel):
     check_out: datetime | None = None
     guests: int | None = Field(default=None, ge=1)
     notes: str | None = None
+    rate_plan: RatePlan | None = None
 
 
 class PaymentInfo(BaseModel):
@@ -50,6 +52,7 @@ class ReservationOut(BaseModel):
     check_in: datetime
     check_out: datetime
     guests: int
+    rate_plan: RatePlan
     status: ReservationStatus
     source: ReservationSource
     confirmed: bool
@@ -63,6 +66,7 @@ class ReservationOut(BaseModel):
 
 class ReservationFolio(BaseModel):
     nights: int
+    rate_plan: RatePlan
     room_charge_pen: Decimal
     room_charge_usd: Decimal
     charges: list[ChargeOut]

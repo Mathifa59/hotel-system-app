@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { useRealtime } from "@/lib/ws";
+import { useToast } from "@/lib/toast";
 import type { AppNotification } from "@/lib/types";
 import { formatDateTime } from "@/lib/labels";
 
@@ -11,26 +12,25 @@ import { formatDateTime } from "@/lib/labels";
 // de usuarios a la vez) duplicar la conexión es más simple que compartirla
 // vía contexto; si el número de paneles abiertos crece, compartir una sola.
 export function NotificationBell({ token }: { token: string }) {
+  const toast = useToast();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [open, setOpen] = useState(false);
-  const [toasts, setToasts] = useState<{ id: string; message: string }[]>([]);
   const knownIds = useRef<Set<string> | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(() => {
     api.get<AppNotification[]>("/notifications", token).then((list) => {
       if (knownIds.current) {
+        // Notificaciones nuevas del servidor (cambios de estado, solicitudes,
+        // etc.) se muestran como toast en la misma pila que el feedback de
+        // acciones — una sola posición consistente abajo (ver ToastProvider).
         const fresh = list.filter((n) => !knownIds.current!.has(n.id) && !n.read);
-        for (const n of fresh) {
-          const toastId = n.id;
-          setToasts((prev) => [...prev, { id: toastId, message: n.message }]);
-          setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toastId)), 5000);
-        }
+        for (const n of fresh) toast.info(n.message);
       }
       knownIds.current = new Set(list.map((n) => n.id));
       setNotifications(list);
     });
-  }, [token]);
+  }, [token, toast]);
 
   useEffect(load, [load]);
   useRealtime(token, load);
@@ -111,17 +111,6 @@ export function NotificationBell({ token }: { token: string }) {
             )}
           </div>
         )}
-      </div>
-
-      <div className="fixed bottom-5 left-5 right-5 z-50 flex flex-col items-end gap-2 sm:left-auto">
-        {toasts.map((t) => (
-          <div
-            key={t.id}
-            className="glass-panel animate-rise w-full rounded-xl px-4 py-3 text-sm text-parchment shadow-[0_20px_50px_-10px_rgba(0,0,0,0.6)] sm:w-80"
-          >
-            {t.message}
-          </div>
-        ))}
       </div>
     </>
   );

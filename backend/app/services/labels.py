@@ -6,6 +6,7 @@ ROOM_TYPE_LABEL = {
     RoomType.doble_deluxe: "Doble Deluxe",
     RoomType.doble_deluxe_twin: "Doble Deluxe - 2 camas",
     RoomType.deluxe_extragrande: "Deluxe con cama extragrande",
+    RoomType.triple: "Triple",
 }
 
 ROOM_STATUS_LABEL = {

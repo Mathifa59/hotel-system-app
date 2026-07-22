@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from app.core.database import Base
-from app.models.enums import PaymentMethod, ReservationSource, ReservationStatus, RoomType
+from app.models.enums import PaymentMethod, RatePlan, ReservationSource, ReservationStatus, RoomType
 
 
 class Reservation(Base):
@@ -46,6 +46,14 @@ class Reservation(Base):
         server_default=ReservationSource.staff.value,
     )
     confirmed: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    # Qué lista de precios se usa para calcular el cargo de alojamiento de
+    # ESTA reserva — recepción la elige al crearla (ver RoomTypeRate para las
+    # dos tarifas por tipo de cuarto).
+    rate_plan: Mapped[RatePlan] = mapped_column(
+        Enum(RatePlan, name="rate_plan"),
+        default=RatePlan.professional,
+        server_default=RatePlan.professional.value,
+    )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -13,6 +13,7 @@ class RoomType(str, enum.Enum):
     doble_deluxe = "doble_deluxe"
     doble_deluxe_twin = "doble_deluxe_twin"
     deluxe_extragrande = "deluxe_extragrande"
+    triple = "triple"
 
 
 class RoomStatus(str, enum.Enum):
@@ -70,3 +71,11 @@ class PaymentMethod(str, enum.Enum):
     cash = "cash"
     card = "card"
     transfer = "transfer"
+
+
+class RatePlan(str, enum.Enum):
+    # Tarifa estándar vs. la rebajada que se ofrece por temporada/canal — se
+    # elige por reserva, no por tipo de cuarto (el mismo cuarto puede
+    # venderse a cualquiera de las dos según el caso).
+    professional = "professional"
+    promotional = "promotional"

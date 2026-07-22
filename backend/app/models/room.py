@@ -35,3 +35,8 @@ class RoomTypeRate(Base):
     type: Mapped[RoomType] = mapped_column(Enum(RoomType, name="room_type"), primary_key=True)
     price_pen: Mapped[float] = mapped_column(Numeric(8, 2))
     price_usd: Mapped[float] = mapped_column(Numeric(8, 2))
+    # Tarifa "promocional" opcional — nula cuando ese tipo no tiene precio
+    # rebajado definido (ej. Doble Deluxe - 2 camas), y en ese caso el
+    # checkout/folio cae de vuelta a la tarifa profesional de arriba.
+    price_pen_promo: Mapped[float | None] = mapped_column(Numeric(8, 2), nullable=True)
+    price_usd_promo: Mapped[float | None] = mapped_column(Numeric(8, 2), nullable=True)

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
+import { useToast } from "@/lib/toast";
 import type { Reservation, Room } from "@/lib/types";
 import { formatDateTime, roomTypeLabel } from "@/lib/labels";
 
@@ -27,6 +28,7 @@ export function SiteRequestsPanel({
   // salir y volver a entrar para ver la reserva recién confirmada.
   onResolved?: () => void;
 }) {
+  const toast = useToast();
   const [requests, setRequests] = useState<Reservation[]>([]);
   const [rooms, setRooms] = useState<Record<string, Room>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -35,9 +37,13 @@ export function SiteRequestsPanel({
   const load = useCallback(() => {
     api
       .get<Reservation[]>("/reservations?source=website&status=pending", token)
-      .then((list) => setRequests(list.filter((r) => !r.confirmed)));
-    api.get<Room[]>("/rooms", token).then((list) => setRooms(Object.fromEntries(list.map((r) => [r.id, r]))));
-  }, [token]);
+      .then((list) => setRequests(list.filter((r) => !r.confirmed)))
+      .catch(() => toast.error("No se pudieron cargar las solicitudes del sitio web."));
+    api
+      .get<Room[]>("/rooms", token)
+      .then((list) => setRooms(Object.fromEntries(list.map((r) => [r.id, r]))))
+      .catch(() => toast.error("No se pudieron cargar los cuartos."));
+  }, [token, toast]);
 
   useEffect(load, [load, refreshSignal]);
 

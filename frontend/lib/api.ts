@@ -3,6 +3,11 @@
 // variables de entorno que configurar al desplegar.
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
+// Clave compartida con auth.tsx (que la importa desde acá) — antes estaba
+// duplicada como string literal en los dos archivos, con riesgo de que
+// alguien cambie uno y no el otro.
+export const TOKEN_STORAGE_KEY = "apu_token";
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -18,6 +23,17 @@ async function request<T>(path: string, options: RequestInit, token?: string | n
 
   const res = await fetch(`${API_URL}${path}`, { ...options, headers });
   if (!res.ok) {
+    // El JWT expira a las 12h — sin esto, cuando muere a mitad de turno cada
+    // llamada al API tira 401 y la app se queda "logueada" con un token
+    // muerto, mostrando errores por todos lados sin explicar por qué. Se
+    // limpia la sesión y se manda a login, salvo que el 401 venga del login
+    // mismo (credenciales incorrectas) — ahí no hay sesión que cerrar.
+    if (res.status === 401 && path !== "/auth/login" && typeof window !== "undefined") {
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+    }
     const body = await res.json().catch(() => ({}));
     throw new ApiError(res.status, body.detail ?? `Error ${res.status}`);
   }

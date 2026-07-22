@@ -1,6 +1,7 @@
 export type Role = "admin" | "reception" | "cleaning";
 export type RoomStatus = "available" | "occupied" | "cleaning" | "clean" | "maintenance" | "do_not_disturb";
-export type RoomType = "individual" | "doble" | "doble_deluxe" | "doble_deluxe_twin" | "deluxe_extragrande";
+export type RoomType = "individual" | "doble" | "doble_deluxe" | "doble_deluxe_twin" | "deluxe_extragrande" | "triple";
+export type RatePlan = "professional" | "promotional";
 export type CleaningRequestType = "full" | "sheets_only" | "towels_only" | "partial" | "do_not_enter";
 export type CleaningRequestStatus = "pending" | "in_progress" | "completed" | "skipped";
 export type ChargeType = "minibar" | "damage" | "extra_cleaning" | "other" | "room";
@@ -84,6 +85,7 @@ export interface Reservation {
   check_in: string;
   check_out: string;
   guests: number;
+  rate_plan: RatePlan;
   status: ReservationStatus;
   source: ReservationSource;
   confirmed: boolean;
@@ -97,6 +99,7 @@ export interface Reservation {
 
 export interface ReservationFolio {
   nights: number;
+  rate_plan: RatePlan;
   room_charge_pen: string;
   room_charge_usd: string;
   charges: Charge[];
@@ -142,18 +145,8 @@ export interface RealtimeEvent {
   [key: string]: unknown;
 }
 
-export interface ActivityLogEntry {
-  action: string;
-  meta: Record<string, unknown> | null;
-  actor_name: string | null;
-  created_at: string;
-}
-
 export interface RoomHistory {
   reservations: Reservation[];
-  cleaning_requests: CleaningRequest[];
-  charges: Charge[];
-  activity: ActivityLogEntry[];
 }
 
 export interface AppNotification {

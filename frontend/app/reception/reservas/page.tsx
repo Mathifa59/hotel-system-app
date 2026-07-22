@@ -3,11 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useRealtime } from "@/lib/ws";
+import { useToast } from "@/lib/toast";
 import { api, ApiError } from "@/lib/api";
-import type { Reservation, RealtimeEvent, Room } from "@/lib/types";
-import { formatDateTime, reservationStatusLabel, roomTypeLabel } from "@/lib/labels";
+import type { RatePlan, Reservation, RealtimeEvent, Room, RoomHistory } from "@/lib/types";
+import { formatDateTime, ratePlanLabel, reservationStatusLabel, roomTypeLabel } from "@/lib/labels";
 import { DashboardShell } from "@/components/DashboardShell";
+import { DateTimeField } from "@/components/DateTimeField";
 import { Modal } from "@/components/Modal";
+import { RoomReservationHistory } from "@/components/RoomReservationHistory";
 import { SiteRequestsPanel, roomOrWaitlistLabel } from "@/components/SiteRequestsPanel";
 import { CheckoutModal } from "@/components/CheckoutModal";
 
@@ -15,6 +18,14 @@ const NAV = [
   { href: "/reception", label: "Cuartos" },
   { href: "/reception/reservas", label: "Reservas" },
   { href: "/reception/cargos", label: "Cargos" },
+];
+
+// Horarios de salida estándar del hotel — evita que recepción escriba una
+// hora de check-out arbitraria que no corresponde a ninguna política real.
+const CHECKOUT_TIMES = [
+  { label: "10:00 am", time: "10:00" },
+  { label: "12:00 md", time: "12:00" },
+  { label: "3:00 pm", time: "15:00" },
 ];
 
 // Señales por fecha: una reserva activa cuya salida ya pasó (el huésped debió
@@ -29,23 +40,46 @@ function dateSignal(r: Reservation): string | null {
 
 export default function ReservationsPage() {
   const { token } = useAuth();
+  const toast = useToast();
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [rooms, setRooms] = useState<Record<string, Room>>({});
   const [creating, setCreating] = useState(false);
+  const [initialRoomId, setInitialRoomId] = useState<string | undefined>(undefined);
   const [editing, setEditing] = useState<Reservation | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [siteRequestsRefresh, setSiteRequestsRefresh] = useState(0);
   const [checkingOut, setCheckingOut] = useState<Reservation | null>(null);
+  const [viewingRoomHistory, setViewingRoomHistory] = useState<Room | null>(null);
 
   const noShowCount = reservations.filter((r) => dateSignal(r) === "No llegó").length;
 
   const load = useCallback(() => {
     if (!token) return;
-    api.get<Reservation[]>("/reservations", token).then(setReservations);
-    api.get<Room[]>("/rooms", token).then((list) => setRooms(Object.fromEntries(list.map((r) => [r.id, r]))));
-  }, [token]);
+    api
+      .get<Reservation[]>("/reservations", token)
+      .then(setReservations)
+      .catch(() => toast.error("No se pudieron cargar las reservas."));
+    api
+      .get<Room[]>("/rooms", token)
+      .then((list) => setRooms(Object.fromEntries(list.map((r) => [r.id, r]))))
+      .catch(() => toast.error("No se pudieron cargar los cuartos."));
+  }, [token, toast]);
 
   useEffect(load, [load]);
+
+  // Cuando recepción marca un cuarto "Ocupado" desde el mapa de cuartos y
+  // confirma que quiere crear la reserva, RoomDetailModal navega acá con
+  // estos parámetros — se abre "Nueva reserva" con el cuarto ya elegido, en
+  // vez de que recepción tenga que buscarlo de nuevo en el selector.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("openReservation") === "1") {
+      const roomId = params.get("roomId");
+      if (roomId) setInitialRoomId(roomId);
+      setCreating(true);
+      window.history.replaceState(null, "", "/reception/reservas");
+    }
+  }, []);
   const connected = useRealtime(token, (event: RealtimeEvent) => {
     if (event.event === "booking_request_created") {
       setSiteRequestsRefresh((n) => n + 1);
@@ -62,7 +96,10 @@ export default function ReservationsPage() {
     setBusy(id);
     try {
       await api.patch(`/reservations/${id}/checkin`, undefined, token);
+      toast.success("Check-in registrado — el cuarto quedó ocupado.");
       load();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo hacer el check-in.");
     } finally {
       setBusy(null);
     }
@@ -70,10 +107,14 @@ export default function ReservationsPage() {
 
   async function cancel(id: string) {
     if (!token) return;
+    if (!window.confirm("¿Cancelar esta reserva y liberar el cuarto?")) return;
     setBusy(id);
     try {
       await api.patch(`/reservations/${id}/cancel`, undefined, token);
+      toast.success("Reserva cancelada.");
       load();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo cancelar la reserva.");
     } finally {
       setBusy(null);
     }
@@ -82,8 +123,13 @@ export default function ReservationsPage() {
   async function liberarNoShows() {
     if (!token) return;
     if (!window.confirm(`¿Cancelar ${noShowCount} reserva(s) que no se presentaron y liberar esos cuartos?`)) return;
-    await api.post("/reservations/expire-no-shows", undefined, token);
-    load();
+    try {
+      await api.post("/reservations/expire-no-shows", undefined, token);
+      toast.success(`Se liberaron ${noShowCount} cuarto(s) de reservas no presentadas.`);
+      load();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudieron liberar los no-shows.");
+    }
   }
 
   return (
@@ -180,6 +226,14 @@ export default function ReservationsPage() {
                   Check-out
                 </button>
               )}
+              {r.room_id && rooms[r.room_id] && (
+                <button
+                  onClick={() => setViewingRoomHistory(rooms[r.room_id!])}
+                  className="rounded-lg border border-border-warm px-3 py-1.5 text-xs font-medium text-parchment-dim transition hover:border-brass/40 hover:text-brass"
+                >
+                  Historial del cuarto
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -190,7 +244,11 @@ export default function ReservationsPage() {
         <CreateReservationModal
           token={token}
           rooms={Object.values(rooms)}
-          onClose={() => setCreating(false)}
+          initialRoomId={initialRoomId}
+          onClose={() => {
+            setCreating(false);
+            setInitialRoomId(undefined);
+          }}
           onCreated={(res) => setReservations((prev) => [res, ...prev])}
         />
       )}
@@ -219,34 +277,103 @@ export default function ReservationsPage() {
           }}
         />
       )}
+
+      {viewingRoomHistory && token && (
+        <RoomHistoryModal room={viewingRoomHistory} token={token} onClose={() => setViewingRoomHistory(null)} />
+      )}
     </DashboardShell>
+  );
+}
+
+// Historial de reservas de un cuarto, consultable directamente desde la
+// pestaña de Reservas (antes solo se veía abriendo el cuarto en el mapa).
+function RoomHistoryModal({ room, token, onClose }: { room: Room; token: string; onClose: () => void }) {
+  const [history, setHistory] = useState<RoomHistory | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api
+      .get<RoomHistory>(`/rooms/${room.id}/history`, token)
+      .then(setHistory)
+      .finally(() => setLoading(false));
+  }, [room.id, token]);
+
+  return (
+    <Modal title={`Historial — Cuarto ${room.number}`} onClose={onClose}>
+      {loading && <p className="text-sm text-parchment-dim">Cargando…</p>}
+      {history && <RoomReservationHistory reservations={history.reservations} />}
+    </Modal>
+  );
+}
+
+// Selector de qué lista de precios se cobra para esta reserva — recepción
+// elige entre la tarifa profesional (estándar) y la promocional (rebajada)
+// por reserva, no por tipo de cuarto (ver RATES en el backend).
+function RatePlanToggle({ value, onChange }: { value: RatePlan; onChange: (plan: RatePlan) => void }) {
+  return (
+    <div className="flex gap-2">
+      {(["professional", "promotional"] as RatePlan[]).map((plan) => (
+        <button
+          key={plan}
+          type="button"
+          onClick={() => onChange(plan)}
+          className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition ${
+            value === plan
+              ? "border-brass/50 bg-brass/15 text-brass"
+              : "border-border-warm text-parchment-dim hover:border-brass/40 hover:text-parchment"
+          }`}
+        >
+          {ratePlanLabel[plan]}
+        </button>
+      ))}
+    </div>
   );
 }
 
 function CreateReservationModal({
   token,
   rooms,
+  initialRoomId,
   onClose,
   onCreated,
 }: {
   token: string;
   rooms: Room[];
+  // Viene precargado cuando recepción llega desde "marcar Ocupado → sí,
+  // crear reserva" en el mapa de cuartos (ver reservas/page.tsx).
+  initialRoomId?: string;
   onClose: () => void;
   onCreated: (r: Reservation) => void;
 }) {
-  const [roomId, setRoomId] = useState(rooms[0]?.id ?? "");
+  const toast = useToast();
+  const [roomId, setRoomId] = useState(initialRoomId ?? rooms[0]?.id ?? "");
   const [guestName, setGuestName] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
   const [guestIdDocument, setGuestIdDocument] = useState("");
   const [guests, setGuests] = useState(1);
+  const [ratePlan, setRatePlan] = useState<RatePlan>("professional");
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Devuelve el primer campo faltante para avisar exactamente qué llenar, en
+  // vez de dejar el botón deshabilitado sin explicación.
+  function missingField(): string | null {
+    if (!roomId) return "Elige un cuarto.";
+    if (!guestName.trim()) return "Escribe el nombre del huésped.";
+    if (!checkIn) return "Falta la fecha de check-in.";
+    if (!checkOut) return "Falta la fecha de check-out.";
+    if (new Date(checkOut) <= new Date(checkIn)) return "El check-out debe ser posterior al check-in.";
+    return null;
+  }
+
   async function submit() {
+    const missing = missingField();
+    if (missing) {
+      toast.error(missing);
+      return;
+    }
     setSubmitting(true);
-    setError(null);
     try {
       const reservation = await api.post<Reservation>(
         "/reservations",
@@ -256,97 +383,102 @@ function CreateReservationModal({
           guest_phone: guestPhone || undefined,
           guest_id_document: guestIdDocument || undefined,
           guests,
+          rate_plan: ratePlan,
           check_in: new Date(checkIn).toISOString(),
           check_out: new Date(checkOut).toISOString(),
         },
         token
       );
       onCreated(reservation);
+      toast.success(`Reserva de ${reservation.guest_name} creada correctamente.`);
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo crear la reserva");
+      toast.error(err instanceof ApiError ? err.message : "No se pudo crear la reserva.");
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <Modal title="Nueva reserva" onClose={onClose}>
-      <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">Cuarto</label>
-      <select
-        value={roomId}
-        onChange={(e) => setRoomId(e.target.value)}
-        className="mb-3 w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
-      >
-        {rooms.map((r) => (
-          <option key={r.id} value={r.id}>
-            Cuarto {r.number}
-          </option>
-        ))}
-      </select>
+    <Modal title="Nueva reserva" onClose={onClose} wide>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">Cuarto</label>
+          <select
+            value={roomId}
+            onChange={(e) => setRoomId(e.target.value)}
+            className="w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
+          >
+            {rooms.map((r) => (
+              <option key={r.id} value={r.id}>
+                Cuarto {r.number}
+              </option>
+            ))}
+          </select>
+        </div>
 
-      <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">Huésped</label>
-      <input
-        value={guestName}
-        onChange={(e) => setGuestName(e.target.value)}
-        placeholder="Nombre completo"
-        className="mb-3 w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment placeholder:text-parchment-dim/50 outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
-      />
-
-      <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">
-        Identificación (INE, pasaporte, etc.)
-      </label>
-      <input
-        value={guestIdDocument}
-        onChange={(e) => setGuestIdDocument(e.target.value)}
-        placeholder="Número de documento"
-        className="mb-3 w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment placeholder:text-parchment-dim/50 outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
-      />
-
-      <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">Teléfono (opcional)</label>
-      <input
-        value={guestPhone}
-        onChange={(e) => setGuestPhone(e.target.value)}
-        placeholder="+52 55 0000 0000"
-        className="mb-3 w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment placeholder:text-parchment-dim/50 outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
-      />
-
-      <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">Huéspedes</label>
-      <input
-        type="number"
-        min={1}
-        value={guests}
-        onChange={(e) => setGuests(Math.max(1, Number(e.target.value)))}
-        className="mb-3 w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
-      />
-
-      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:gap-2">
-        <div className="w-full sm:w-1/2">
-          <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">Check-in</label>
+        <div>
+          <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">Huéspedes</label>
           <input
-            type="datetime-local"
-            value={checkIn}
-            onChange={(e) => setCheckIn(e.target.value)}
+            type="number"
+            min={1}
+            value={guests}
+            onChange={(e) => setGuests(Math.max(1, Number(e.target.value)))}
             className="w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
           />
         </div>
-        <div className="w-full sm:w-1/2">
-          <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">Check-out</label>
+
+        <div className="sm:col-span-2">
+          <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">Huésped</label>
           <input
-            type="datetime-local"
-            value={checkOut}
-            onChange={(e) => setCheckOut(e.target.value)}
-            className="w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
+            value={guestName}
+            onChange={(e) => setGuestName(e.target.value)}
+            placeholder="Nombre completo"
+            className="w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment placeholder:text-parchment-dim/50 outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
           />
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">
+            Identificación (INE, pasaporte, etc.) — opcional
+          </label>
+          <input
+            value={guestIdDocument}
+            onChange={(e) => setGuestIdDocument(e.target.value)}
+            placeholder="Número de documento"
+            className="w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment placeholder:text-parchment-dim/50 outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
+          />
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">Teléfono (opcional)</label>
+          <input
+            value={guestPhone}
+            onChange={(e) => setGuestPhone(e.target.value)}
+            placeholder="+52 55 0000 0000"
+            className="w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment placeholder:text-parchment-dim/50 outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
+          />
+        </div>
+
+        <div className="sm:col-span-2">
+          <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">Tarifa</label>
+          <RatePlanToggle value={ratePlan} onChange={setRatePlan} />
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">Check-in</label>
+          <DateTimeField value={checkIn} onChange={setCheckIn} />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">Check-out</label>
+          <DateTimeField value={checkOut} onChange={setCheckOut} presetTimes={CHECKOUT_TIMES} />
         </div>
       </div>
 
-      {error && <p className="mb-3 text-sm text-room-maintenance">{error}</p>}
-
       <button
         onClick={submit}
-        disabled={submitting || !roomId || !guestName || !checkIn || !checkOut}
-        className="w-full rounded-lg bg-brass py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
+        disabled={submitting}
+        className="mt-4 w-full rounded-lg bg-brass py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
       >
         {submitting ? "Creando…" : "Crear reserva"}
       </button>
@@ -378,14 +510,19 @@ function EditReservationModal({
   const [guestPhone, setGuestPhone] = useState(reservation.guest_phone ?? "");
   const [guestIdDocument, setGuestIdDocument] = useState(reservation.guest_id_document ?? "");
   const [guests, setGuests] = useState(reservation.guests);
+  const [ratePlan, setRatePlan] = useState<RatePlan>(reservation.rate_plan);
   const [checkIn, setCheckIn] = useState(toLocalInput(reservation.check_in));
   const [checkOut, setCheckOut] = useState(toLocalInput(reservation.check_out));
-  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const toast = useToast();
 
   async function submit() {
+    if (!guestName.trim()) return toast.error("Escribe el nombre del huésped.");
+    if (!checkIn) return toast.error("Falta la fecha de check-in.");
+    if (!checkOut) return toast.error("Falta la fecha de check-out.");
+    if (new Date(checkOut) <= new Date(checkIn)) return toast.error("El check-out debe ser posterior al check-in.");
+
     setSubmitting(true);
-    setError(null);
     try {
       const updated = await api.patch<Reservation>(
         `/reservations/${reservation.id}`,
@@ -395,14 +532,16 @@ function EditReservationModal({
           guest_phone: guestPhone || undefined,
           guest_id_document: guestIdDocument || undefined,
           guests,
+          rate_plan: ratePlan,
           check_in: new Date(checkIn).toISOString(),
           check_out: new Date(checkOut).toISOString(),
         },
         token
       );
       onUpdated(updated);
+      toast.success("Reserva actualizada.");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo actualizar la reserva");
+      toast.error(err instanceof ApiError ? err.message : "No se pudo actualizar la reserva.");
     } finally {
       setSubmitting(false);
     }
@@ -439,7 +578,7 @@ function EditReservationModal({
       />
 
       <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">
-        Identificación (INE, pasaporte, etc.)
+        Identificación (INE, pasaporte, etc.) — opcional
       </label>
       <input
         value={guestIdDocument}
@@ -464,32 +603,25 @@ function EditReservationModal({
         className="mb-3 w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
       />
 
+      <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">Tarifa</label>
+      <div className="mb-3">
+        <RatePlanToggle value={ratePlan} onChange={setRatePlan} />
+      </div>
+
       <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:gap-2">
         <div className="w-full sm:w-1/2">
           <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">Check-in</label>
-          <input
-            type="datetime-local"
-            value={checkIn}
-            onChange={(e) => setCheckIn(e.target.value)}
-            className="w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
-          />
+          <DateTimeField value={checkIn} onChange={setCheckIn} />
         </div>
         <div className="w-full sm:w-1/2">
           <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">Check-out</label>
-          <input
-            type="datetime-local"
-            value={checkOut}
-            onChange={(e) => setCheckOut(e.target.value)}
-            className="w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
-          />
+          <DateTimeField value={checkOut} onChange={setCheckOut} presetTimes={CHECKOUT_TIMES} />
         </div>
       </div>
 
-      {error && <p className="mb-3 text-sm text-room-maintenance">{error}</p>}
-
       <button
         onClick={submit}
-        disabled={submitting || !guestName || !checkIn || !checkOut}
+        disabled={submitting}
         className="w-full rounded-lg bg-brass py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright disabled:opacity-50"
       >
         {submitting ? "Guardando…" : "Guardar cambios"}

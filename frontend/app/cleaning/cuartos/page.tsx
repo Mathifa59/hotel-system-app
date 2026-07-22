@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useRealtime } from "@/lib/ws";
+import { useToast } from "@/lib/toast";
 import { api } from "@/lib/api";
 import type { Room, RealtimeEvent } from "@/lib/types";
 import { DashboardShell } from "@/components/DashboardShell";
@@ -16,6 +17,7 @@ const NAV = [
 
 export default function CleaningRoomsPage() {
   const { token } = useAuth();
+  const toast = useToast();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selected, setSelected] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
@@ -23,8 +25,12 @@ export default function CleaningRoomsPage() {
 
   const loadRooms = useCallback(() => {
     if (!token) return;
-    api.get<Room[]>("/rooms", token).then(setRooms).finally(() => setLoading(false));
-  }, [token]);
+    api
+      .get<Room[]>("/rooms", token)
+      .then(setRooms)
+      .catch(() => toast.error("No se pudo cargar el mapa de cuartos."))
+      .finally(() => setLoading(false));
+  }, [token, toast]);
 
   useEffect(loadRooms, [loadRooms]);
 
