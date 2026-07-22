@@ -60,6 +60,36 @@
   }
 }
 
+/* Paneles tipo menú (notificaciones, dropdowns) — a diferencia de glass-panel
+   (80% opacidad, pensado para modales grandes sobre fondo ya oscurecido),
+   estos flotan directo sobre contenido con color (el mapa de cuartos) y al
+   80% se leían "lavados"/transparentes. Casi opacos + blur solo para el
+   borde suave. CSS plano sin @layer — mismo motivo que en el sitio público:
+   Tailwind v4 recorta propiedades de clases custom dentro de @layer
+   utilities cuando coinciden con una categoría suya (acá, "background"). */
+.menu-panel {
+  background: color-mix(in srgb, var(--color-surface-raised) 97%, transparent);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border-warm);
+}
+
+/* Scrollbar delgado y con el tema, en vez de la barra gris nativa del
+   navegador que se veía fuera de lugar sobre el panel oscuro. */
+.themed-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-warm) transparent;
+}
+.themed-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.themed-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.themed-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--color-border-warm);
+  border-radius: 9999px;
+}
+
 @keyframes rise-in {
   from {
     opacity: 0;

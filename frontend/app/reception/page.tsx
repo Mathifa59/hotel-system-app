@@ -9,6 +9,7 @@ import type { RealtimeEvent, Reservation, Room } from "@/lib/types";
 import { DashboardShell } from "@/components/DashboardShell";
 import { RoomGrid } from "@/components/RoomGrid";
 import { RoomDetailModal } from "@/components/RoomDetailModal";
+import { CreateReservationModal } from "@/components/CreateReservationModal";
 
 const NAV = [
   { href: "/reception", label: "Cuartos" },
@@ -23,6 +24,7 @@ export default function ReceptionRoomsPage() {
   const [selected, setSelected] = useState<Room | null>(null);
   const [changedRoomNumbers, setChangedRoomNumbers] = useState<Set<string>>(new Set());
   const [overdueRoomNumbers, setOverdueRoomNumbers] = useState<Set<string>>(new Set());
+  const [creating, setCreating] = useState(false);
 
   const load = useCallback(() => {
     if (!token) return;
@@ -78,7 +80,15 @@ export default function ReceptionRoomsPage() {
 
   return (
     <DashboardShell title="Recepción" nav={NAV} connected={connected}>
-      <h1 className="mb-6 font-display text-2xl italic text-parchment">Mapa de cuartos</h1>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="font-display text-2xl italic text-parchment">Mapa de cuartos</h1>
+        <button
+          onClick={() => setCreating(true)}
+          className="rounded-lg bg-brass px-4 py-2 text-sm font-semibold text-ink transition active:scale-[0.98] hover:bg-brass-bright"
+        >
+          + Nueva reserva
+        </button>
+      </div>
       <RoomGrid
         rooms={rooms}
         onSelect={setSelected}
@@ -98,6 +108,15 @@ export default function ReceptionRoomsPage() {
             setRooms((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
             setSelected(updated);
           }}
+        />
+      )}
+
+      {creating && token && (
+        <CreateReservationModal
+          token={token}
+          rooms={rooms}
+          onClose={() => setCreating(false)}
+          onCreated={() => load()}
         />
       )}
     </DashboardShell>

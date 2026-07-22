@@ -12,6 +12,8 @@ const MONTHS = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 ];
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+const MINUTE_STEPS = ["00", "15", "30", "45"];
 
 function parseValue(value: string): { date: Date | null; hh: string; mm: string } {
   if (!value) return { date: null, hh: "", mm: "" };
@@ -189,30 +191,60 @@ export function DateTimeField({
               </button>
             </div>
           ) : (
-            <div className="mt-4 flex items-center justify-between gap-2 border-t border-border-warm pt-3">
-              <button
-                type="button"
-                onClick={() => onChange("")}
-                className="text-xs font-medium text-parchment-dim transition hover:text-brass"
-              >
-                Borrar
-              </button>
-              <input
-                type="time"
-                value={hh && mm ? `${hh}:${mm}` : ""}
-                onChange={(e) => setTime(e.target.value)}
-                className="rounded-md border border-border-warm bg-ink/60 px-2 py-1 text-xs text-parchment outline-none focus:border-brass"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  setViewMonth(today);
-                  pickDay(today);
-                }}
-                className="text-xs font-medium text-brass transition hover:text-brass-bright"
-              >
-                Hoy
-              </button>
+            // Un <input type="time"> nativo abre el selector propio del
+            // sistema operativo (el mismo panel azul de dos columnas que
+            // rompía el tema oscuro en el datetime-local original) — acá se
+            // arma la hora con dos <select> normales, que sí se pueden
+            // pintar con los colores de la app.
+            <div className="mt-4 border-t border-border-warm pt-3">
+              <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-parchment-dim">Hora</p>
+              <div className="flex items-center gap-2">
+                <select
+                  value={hh || "00"}
+                  onChange={(e) => setTime(`${e.target.value}:${mm || "00"}`)}
+                  className="rounded-md border border-border-warm bg-ink/60 px-2 py-1.5 text-xs text-parchment outline-none focus:border-brass"
+                >
+                  {HOURS.map((h) => (
+                    <option key={h} value={h}>
+                      {h}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-parchment-dim">:</span>
+                <select
+                  value={mm || "00"}
+                  onChange={(e) => setTime(`${hh || "00"}:${e.target.value}`)}
+                  className="rounded-md border border-border-warm bg-ink/60 px-2 py-1.5 text-xs text-parchment outline-none focus:border-brass"
+                >
+                  {/* Si el valor actual no cae en un paso de 15 min (ej. vino
+                      de una reserva vieja con otra granularidad), se agrega
+                      como opción extra para no cambiarlo solo por mostrarlo. */}
+                  {(mm && !MINUTE_STEPS.includes(mm) ? [mm, ...MINUTE_STEPS] : MINUTE_STEPS).map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+                <div className="ml-auto flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => onChange("")}
+                    className="text-xs font-medium text-parchment-dim transition hover:text-brass"
+                  >
+                    Borrar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setViewMonth(today);
+                      pickDay(today);
+                    }}
+                    className="text-xs font-medium text-brass transition hover:text-brass-bright"
+                  >
+                    Hoy
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
