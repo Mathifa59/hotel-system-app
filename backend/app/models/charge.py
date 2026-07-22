@@ -28,3 +28,8 @@ class Charge(Base):
     )
     created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Fecha ECONÓMICA: cuándo ocurrió realmente el consumo/alojamiento, que no
+    # siempre es cuándo se registró (created_at). Para una estadía pasada
+    # cargada hoy, occurred_at es la fecha de la estadía — así los reportes la
+    # cuentan en el mes que corresponde. Normalmente ambas coinciden.
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -23,7 +23,14 @@ from app.models.enums import (
 from app.models.reservation import Reservation
 from app.models.room import Room, RoomTypeRate
 from app.models.user import User
-from app.schemas.reservation import PaymentInfo, ReservationCreate, ReservationFolio, ReservationOut, ReservationUpdate
+from app.schemas.reservation import (
+    HistoricalReservationCreate,
+    PaymentInfo,
+    ReservationCreate,
+    ReservationFolio,
+    ReservationOut,
+    ReservationUpdate,
+)
 from app.services.activity_log import log_activity
 from app.services.capacity import ROOM_CAPACITY
 from app.services.events import publish_event
@@ -123,6 +130,121 @@ def create_reservation(
         entity="reservations",
         entity_id=reservation.id,
         meta={"room": room.number, "guest": data.guest_name},
+    )
+    db.commit()
+    db.refresh(reservation)
+    return reservation
+
+
+@router.post("/historical", response_model=ReservationOut, status_code=status.HTTP_201_CREATED)
+def create_historical_reservation(
+    data: HistoricalReservationCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.admin, UserRole.reception)),
+):
+    """Registra una estadía que YA terminó, sin pasar por el flujo en vivo.
+
+    El camino normal (crear → check-in → check-out) actúa sobre el presente:
+    ocupa el cuarto, lo manda a limpieza y avisa a housekeeping. Para algo que
+    pasó hace semanas todo eso sería incorrecto — el cuarto hoy está libre (o
+    lo ocupa otro huésped) y no hay nada que limpiar. Por eso esta estadía
+    entra directo como `checked_out`, con su cargo de alojamiento ya cobrado,
+    sin tocar el estado del cuarto ni emitir eventos en vivo.
+    """
+    room = db.get(Room, data.room_id)
+    if room is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cuarto no encontrado")
+
+    # Las fechas sin zona horaria se asumen en UTC, igual que en
+    # update_reservation, para poder compararlas entre sí y contra "ahora".
+    check_in = data.check_in if data.check_in.tzinfo else data.check_in.replace(tzinfo=timezone.utc)
+    check_out = data.check_out if data.check_out.tzinfo else data.check_out.replace(tzinfo=timezone.utc)
+
+    if check_out <= check_in:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="check_out debe ser posterior a check_in")
+    if check_out > datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Esta opción es solo para estadías que ya terminaron — para una reserva futura usa el flujo normal",
+        )
+
+    capacity = ROOM_CAPACITY[room.type]
+    if data.guests > capacity:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El cuarto {room.number} admite máximo {capacity} huésped(es)",
+        )
+
+    # A diferencia del alta normal, acá el cruce se busca también contra
+    # estadías ya cerradas: dos huéspedes no pudieron ocupar el mismo cuarto
+    # las mismas noches, así que si choca es que se está cargando dos veces.
+    # (El constraint EXCLUDE de la base solo cubre reservas vivas, a propósito
+    # — ver migración c7d2f4a8e1b6 — así que este chequeo va por consulta.)
+    overlap = (
+        db.query(Reservation)
+        .filter(
+            Reservation.room_id == data.room_id,
+            Reservation.status != ReservationStatus.cancelled,
+            Reservation.check_in < check_out,
+            Reservation.check_out > check_in,
+        )
+        .first()
+    )
+    if overlap is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"El cuarto {room.number} ya tiene registrada una estadía de {overlap.guest_name} en esas fechas",
+        )
+
+    reservation = Reservation(
+        room_id=data.room_id,
+        guest_name=data.guest_name,
+        guest_phone=data.guest_phone,
+        guest_id_document=data.guest_id_document,
+        check_in=check_in,
+        check_out=check_out,
+        guests=data.guests,
+        rate_plan=data.rate_plan,
+        status=ReservationStatus.checked_out,
+        source=ReservationSource.staff,
+        confirmed=True,
+        created_by=current_user.id,
+    )
+    if data.payment is not None:
+        reservation.payment_method = data.payment.method
+        reservation.payment_amount_pen = data.payment.amount_pen
+        reservation.payment_amount_usd = data.payment.amount_usd
+        reservation.paid_at = data.payment.paid_at
+    db.add(reservation)
+    db.flush()
+
+    rate = db.get(RoomTypeRate, room.type)
+    nights = _nights(reservation)
+    pen_rate, usd_rate = _rate_for_plan(rate, reservation.rate_plan)
+    plan_label = "Promocional" if reservation.rate_plan == RatePlan.promotional else "Profesional"
+
+    db.add(
+        Charge(
+            reservation_id=reservation.id,
+            type=ChargeType.room,
+            description=f"Alojamiento — {nights} noche(s) ({plan_label})",
+            amount_pen=pen_rate * nights,
+            amount_usd=usd_rate * nights,
+            status=ChargeStatus.billed,
+            created_by=current_user.id,
+            # La fecha económica es la de la estadía, no la de hoy — es lo que
+            # hace que este registro sume a los ingresos del mes correcto.
+            occurred_at=check_out,
+        )
+    )
+
+    log_activity(
+        db,
+        user_id=current_user.id,
+        action="reservation.historical_created",
+        entity="rooms",
+        entity_id=room.id,
+        meta={"room": room.number, "guest": data.guest_name, "nights": nights},
     )
     db.commit()
     db.refresh(reservation)
@@ -406,9 +528,17 @@ def reservation_folio(
     room_charge_pen = pen_rate * nights
     room_charge_usd = usd_rate * nights
 
+    # Se excluyen los cargos de tipo `room`: el alojamiento ya se muestra
+    # aparte (room_charge_pen/usd, calculado arriba). Sin este filtro, una
+    # reserva que ya pasó por check-out —o una estadía pasada registrada, que
+    # nace con su cargo— lo sumaría dos veces al total.
     charges = (
         db.query(Charge)
-        .filter(Charge.reservation_id == reservation_id, Charge.status != ChargeStatus.cancelled)
+        .filter(
+            Charge.reservation_id == reservation_id,
+            Charge.status != ChargeStatus.cancelled,
+            Charge.type != ChargeType.room,
+        )
         .order_by(Charge.created_at)
         .all()
     )
@@ -459,6 +589,11 @@ def checkout(
         amount_usd=usd_rate * nights,
         status=ChargeStatus.approved,
         created_by=current_user.id,
+        # El alojamiento se reconoce en la fecha de salida del huésped, no en
+        # el instante en que recepción aprieta el botón — normalmente son el
+        # mismo día, pero si el check-out se registra tarde (al día siguiente)
+        # el ingreso igual cae en el día que corresponde.
+        occurred_at=reservation.check_out,
     )
     db.add(room_charge)
 

@@ -38,6 +38,26 @@ class PaymentInfo(BaseModel):
     paid_at: datetime
 
 
+class HistoricalReservationCreate(BaseModel):
+    """Estadía que YA ocurrió, cargada después de los hechos (ej. un walk-in
+    que no se alcanzó a registrar, o el histórico previo al sistema). No pasa
+    por el flujo en vivo pendiente→activa→checked_out: entra directo como
+    cerrada, con su cargo de alojamiento ya calculado. Ver
+    create_historical_reservation."""
+
+    room_id: uuid.UUID
+    guest_name: str
+    guest_phone: str | None = None
+    guest_id_document: str | None = None
+    check_in: datetime
+    check_out: datetime
+    guests: int = Field(default=1, ge=1)
+    rate_plan: RatePlan = RatePlan.professional
+    # Opcional: si no se sabe cómo/cuánto pagó (histórico viejo), la estadía
+    # igual queda registrada para ocupación e ingresos por tarifa.
+    payment: PaymentInfo | None = None
+
+
 class ReservationOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

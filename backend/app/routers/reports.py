@@ -76,16 +76,20 @@ def income_report(
     current_user: User = Depends(require_role(UserRole.admin)),
 ):
     """Suma todos los cargos NO anulados por tipo (alojamiento, frigobar, daños,
-    etc.) dentro del rango de fechas dado (por fecha de creación del cargo)."""
+    etc.) dentro del rango de fechas dado.
+
+    Filtra por `occurred_at` (cuándo ocurrió el consumo) y no por `created_at`
+    (cuándo se tecleó): así una estadía pasada cargada hoy suma al mes en que
+    de verdad ocurrió. Ver la migración d9a1c5e7b3f8."""
     query = db.query(
         Charge.type,
         func.sum(Charge.amount_pen).label("total_pen"),
         func.sum(Charge.amount_usd).label("total_usd"),
     ).filter(Charge.status != ChargeStatus.cancelled)
     if start is not None:
-        query = query.filter(Charge.created_at >= start)
+        query = query.filter(Charge.occurred_at >= start)
     if end is not None:
-        query = query.filter(Charge.created_at <= end)
+        query = query.filter(Charge.occurred_at <= end)
     rows = query.group_by(Charge.type).all()
 
     items = [

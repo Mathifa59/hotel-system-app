@@ -71,6 +71,19 @@ export interface Charge {
   status: ChargeStatus;
   created_by: string;
   created_at: string;
+  // Fecha en que ocurrió el consumo, que puede diferir de created_at cuando
+  // se registra una estadía pasada. Es la que usan los reportes.
+  occurred_at: string;
+}
+
+export interface RoomTypeRate {
+  type: RoomType;
+  price_pen: number;
+  price_usd: number;
+  // Nulos cuando ese tipo no tiene tarifa promocional cargada — en ese caso
+  // se cobra la profesional (ver _rate_for_plan en el backend).
+  price_pen_promo: number | null;
+  price_usd_promo: number | null;
 }
 
 export interface Reservation {

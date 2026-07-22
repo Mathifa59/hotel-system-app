@@ -33,3 +33,4 @@ class ChargeOut(BaseModel):
     status: ChargeStatus
     created_by: uuid.UUID
     created_at: datetime
+    occurred_at: datetime
