@@ -16,6 +16,7 @@ const NAV = [
   { href: "/reception", label: "Cuartos" },
   { href: "/reception/reservas", label: "Reservas" },
   { href: "/reception/cargos", label: "Cargos" },
+  { href: "/reception/reportes", label: "Reportes" },
 ];
 
 const FILTERS: { value: ChargeStatus | "all"; label: string }[] = [

@@ -58,7 +58,7 @@ def stats_report(
     start: date = Query(...),
     end: date = Query(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.admin)),
+    current_user: User = Depends(require_role(UserRole.admin, UserRole.reception)),
 ):
     """Indicadores del periodo, calculados sobre las ESTADÍAS (no sobre la
     fecha en que se registró el cobro).
@@ -238,7 +238,7 @@ def stats_report(
 @router.get("/occupancy", response_model=OccupancyReport)
 def occupancy_report(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.admin)),
+    current_user: User = Depends(require_role(UserRole.admin, UserRole.reception)),
 ):
     rows = db.query(Room.status, func.count(Room.id)).group_by(Room.status).all()
     counts = {s.value: 0 for s in RoomStatus}
@@ -254,7 +254,7 @@ def occupancy_report(
 @router.get("/minibar", response_model=MinibarReport)
 def minibar_report(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.admin)),
+    current_user: User = Depends(require_role(UserRole.admin, UserRole.reception)),
 ):
     rows = (
         db.query(
@@ -291,7 +291,7 @@ def income_report(
     start: datetime | None = Query(default=None),
     end: datetime | None = Query(default=None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.admin)),
+    current_user: User = Depends(require_role(UserRole.admin, UserRole.reception)),
 ):
     """Suma todos los cargos NO anulados por tipo (alojamiento, frigobar, daños,
     etc.) dentro del rango de fechas dado.

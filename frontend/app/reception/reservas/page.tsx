@@ -19,6 +19,7 @@ const NAV = [
   { href: "/reception", label: "Cuartos" },
   { href: "/reception/reservas", label: "Reservas" },
   { href: "/reception/cargos", label: "Cargos" },
+  { href: "/reception/reportes", label: "Reportes" },
 ];
 
 // Señales por fecha: una reserva activa cuya salida ya pasó (el huésped debió

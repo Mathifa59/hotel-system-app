@@ -447,7 +447,20 @@ function MinibarManager({ room, token }: { room: Room; token: string }) {
       .then(([p, s, reservations]) => {
         setProducts(p);
         setStock(s);
-        setReservationId(reservations[0]?.id ?? null);
+        // La reserva activa (huésped ya alojado) manda siempre que exista —
+        // si no hay, se usa la pendiente más próxima a llegar, para poder
+        // registrar consumo aunque todavía no se haya hecho check-in (ej.
+        // el huésped pidió algo al confirmar por teléfono). Antes se tomaba
+        // sin más "la creada más recientemente", que podía ser una reserva
+        // futura de otro huésped para este mismo cuarto y le atribuía mal
+        // el consumo de quien está alojado ahora.
+        const relevant = reservations
+          .filter((r) => r.status === "active" || r.status === "pending")
+          .sort((a, b) => {
+            if (a.status !== b.status) return a.status === "active" ? -1 : 1;
+            return new Date(a.check_in).getTime() - new Date(b.check_in).getTime();
+          });
+        setReservationId(relevant[0]?.id ?? null);
       })
       .finally(() => setLoading(false));
   }, [room.id, token]);

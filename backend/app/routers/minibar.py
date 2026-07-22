@@ -109,7 +109,10 @@ def set_stock(
 def register_consumption(
     data: ConsumptionCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.cleaning, UserRole.admin)),
+    # Recepción también debe poder registrarlo: es quien atiende al huésped
+    # durante la estadía (pide algo del frigobar por teléfono, se lo cobra al
+    # check-out), no solo housekeeping al encontrar el consumo al limpiar.
+    current_user: User = Depends(require_role(UserRole.cleaning, UserRole.admin, UserRole.reception)),
 ):
     room = db.get(Room, data.room_id)
     if room is None:
