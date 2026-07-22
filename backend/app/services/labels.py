@@ -1,4 +1,4 @@
-from app.models.enums import CleaningRequestType, RoomStatus, RoomType
+from app.models.enums import CleaningRequestType, RatePlan, ReservationSource, RoomStatus, RoomType
 
 ROOM_TYPE_LABEL = {
     RoomType.individual: "Individual",
@@ -16,6 +16,16 @@ ROOM_STATUS_LABEL = {
     RoomStatus.clean: "Limpio",
     RoomStatus.maintenance: "Mantenimiento",
     RoomStatus.do_not_disturb: "No molestar",
+}
+
+RATE_PLAN_LABEL = {
+    RatePlan.professional: "Profesional",
+    RatePlan.promotional: "Promocional",
+}
+
+RESERVATION_SOURCE_LABEL = {
+    ReservationSource.staff: "Recepción",
+    ReservationSource.website: "Sitio web",
 }
 
 CLEANING_TYPE_LABEL = {

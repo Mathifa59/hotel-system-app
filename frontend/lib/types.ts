@@ -152,6 +152,53 @@ export interface IncomeReport {
   total_usd: string;
 }
 
+export interface StatsKpis {
+  total_revenue_pen: string;
+  total_revenue_usd: string;
+  lodging_revenue_pen: string;
+  lodging_revenue_usd: string;
+  extras_revenue_pen: string;
+  extras_revenue_usd: string;
+  nights_sold: number;
+  available_room_nights: number;
+  occupancy_rate: number;
+  adr_pen: string;
+  adr_usd: string;
+  revpar_pen: string;
+  revpar_usd: string;
+  arrivals: number;
+  guests: number;
+  avg_nights: number;
+}
+
+export interface StatsBucket {
+  key: string;
+  label: string;
+  nights: number;
+  revenue_pen: string;
+  revenue_usd: string;
+}
+
+export interface StatsDailyPoint {
+  day: string;
+  lodging_pen: string;
+  lodging_usd: string;
+  extras_pen: string;
+  extras_usd: string;
+}
+
+export interface StatsReport {
+  start: string;
+  end: string;
+  kpis: StatsKpis;
+  daily: StatsDailyPoint[];
+  by_room_type: StatsBucket[];
+  by_rate_plan: StatsBucket[];
+  by_room: StatsBucket[];
+  by_source: StatsBucket[];
+  extras_by_type: IncomeReportItem[];
+}
+
 export interface RealtimeEvent {
   event: string;
   ts: string;

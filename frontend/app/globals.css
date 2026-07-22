@@ -20,6 +20,16 @@
      más abajo para el mismo razonamiento aplicado a otro caso. */
   --color-onbrass: #14110d;
 
+  /* Series de los gráficos de reportes. NO son los colores de marca ni los de
+     estado: se eligieron corriendo el validador de paletas (banda de
+     luminosidad, croma mínimo, separación bajo daltonismo protan/deutan y
+     contraste contra la superficie). El latón de marca sirve como acento de
+     UI pero falla como serie: contra un verde salvia da ΔE 0.5 en deutan,
+     o sea indistinguible. Estos dos pasan todos los checks en ambos temas —
+     si se cambian, hay que volver a validarlos, no elegirlos a ojo. */
+  --color-chart-lodging: #b8892a;
+  --color-chart-extras: #4093bd;
+
   /* Estados de cuarto — colores con propósito, cada uno distinguible a simple vista */
   --color-room-available: #4ade80;
   --color-room-occupied: #6e9bf4;
@@ -78,6 +88,12 @@
      de base en el tema oscuro. */
   --color-brass: #8a6423;
   --color-brass-bright: #b98f42;
+
+  /* Mismos dos tonos re-escalonados contra la superficie clara (#fbf7ee) y
+     revalidados con el mismo script — no es un aclarado automático del par
+     oscuro. */
+  --color-chart-lodging: #b0801e;
+  --color-chart-extras: #2380b5;
 
   --color-parchment: #241f16;
   /* Igual que con brass: el primer valor (#6b6151) era legible pero se
