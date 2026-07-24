@@ -5,6 +5,8 @@ Este documento resume todo lo construido hasta ahora en los dos proyectos:
 - **Apu Garden Lodge Web** — sitio público (marketing + reservas)
 - **Apu Gestion System** — sistema interno de gestión del hotel (admin / recepción / limpieza)
 
+> Última actualización: 2026-07-24. Para arquitectura/deploy/pendientes, ver [`DOCUMENTO_MAESTRO.md`](DOCUMENTO_MAESTRO.md).
+
 ---
 
 ## 1. Apu Garden Lodge Web (sitio público)
@@ -13,11 +15,11 @@ Este documento resume todo lo construido hasta ahora en los dos proyectos:
 
 ### Marca y diseño
 - Logo, paleta de colores (verde oliva, terracota/arcilla, miel) y tipografía aplicados en todo el sitio — posicionamiento boutique/premium, no de hotel económico.
-- Favicon real generado desde el ícono del logo (no un genérico).
+- Favicon real generado desde el ícono del logo.
 - Todas las fotos de stock que no pertenecían al hotel fueron eliminadas — solo se conservan fotos reales de las habitaciones y las del cielo estrellado/observatorio.
 
 ### Habitaciones
-- **5 tipos reales**: Individual, Doble, Doble Deluxe, Doble Deluxe (2 camas), Deluxe con cama extragrande.
+- **5 tipos reales**: Individual, Doble, Doble Deluxe, Doble Deluxe (2 camas), Deluxe con cama extragrande. (El sistema de gestión maneja un 6º tipo, **Triple**, agregado esta sesión — pendiente reflejarlo también en el sitio público si el dueño quiere venderlo ahí.)
 - Fotos reales organizadas por tipo, con galería tipo carrusel (flechas + miniaturas).
 - Modal de detalle por habitación (al estilo Booking.com) con: tamaño (m²), configuración de cama, vista, descripción, checklist de baño privado, checklist de equipamiento, y política de no fumar.
 - Precios visibles en soles (S/) por noche, traídos en vivo desde el backend de gestión.
@@ -25,142 +27,151 @@ Este documento resume todo lo construido hasta ahora en los dos proyectos:
 ### Reservas
 - Buscador de disponibilidad real (consulta al backend) por fechas.
 - Formulario de solicitud de reserva (nombre, correo, teléfono, notas) que crea una reserva pendiente en el sistema de gestión.
+- Lista de espera cuando un tipo de cuarto no tiene cupo, en vez de rechazar la solicitud de plano.
 - Sección de preguntas frecuentes (FAQ).
 
 ### Otras secciones
-- "Hasta el último detalle": 8 categorías de amenities del hotel completo (habitación, baño, comida, bienestar, actividades, recepción, seguridad, políticas).
+- "Hasta el último detalle": 8 categorías de amenities del hotel completo.
 - Página Nosotros, Novedad (observación astronómica), Contacto.
 - Todo en español e inglés.
 
 ### SEO
-- Metadata por página y por idioma (título, descripción), canonical y hreflang (es/en) en las 6 páginas.
-- Sitemap.xml y robots.txt generados automáticamente.
-- Datos estructurados (JSON-LD, `LodgingBusiness`): nombre, dirección, teléfono, amenities, rango de precio.
-- Open Graph y Twitter Card con imagen propia (no genérica) en todas las páginas.
+- Metadata por página y por idioma, canonical y hreflang (es/en) en las 6 páginas.
+- Sitemap.xml (con `lastModified`/`changeFrequency`/`priority`) y robots.txt generados automáticamente.
+- Datos estructurados (JSON-LD, schema `Hotel` completo): nombre, dirección, teléfono, amenities, pool, spa, mascotas, monedas, horario 24/7, coordenadas GPS, rango de precio.
+- FAQPage schema en `/reservas` para rich snippets en Google.
+- Open Graph y Twitter Card con imagen propia en todas las páginas.
 - Manifest web (PWA) con íconos reales.
-- **Pendiente, depende del dueño**: coordenadas GPS exactas para el dato estructurado (hoy solo hay dirección en texto) — necesita un link de Google Maps con el pin correcto.
+- Google Search Console configurado (verificación + sitemap enviado + solicitudes de indexación).
+- **Pendiente, depende del dueño**: Google Business Profile, backlinks (TripAdvisor, Booking.com, Facebook, VisitPeru.travel, Hostelworld/Expedia) — ver sección 5.
 
 ---
 
 ## 2. Apu Gestion System (sistema interno)
 
-**Stack:** FastAPI + PostgreSQL + Redis + Next.js (admin/recepción/limpieza) + nginx, todo en Docker Compose.
+**Stack:** FastAPI + PostgreSQL + Redis + Next.js 16 (admin/recepción/limpieza) + nginx, todo en Docker Compose.
 
 ### Roles
 Tres roles de usuario: **admin**, **recepción**, **limpieza** (housekeeper). Cada uno tiene su propio panel y permisos.
 
 ### Cuartos
-- **14 cuartos reales** cargados: piso 1 (101-104, 4 cuartos), piso 2 (201-205, 5 cuartos), piso 3 (301-305, 5 cuartos) — repartidos entre los 5 tipos reales, todos con frigobar activado.
+- **14 cuartos reales** cargados: piso 1 (101-104), piso 2 (201-205), piso 3 (301-305) — repartidos entre los tipos reales, con frigobar activado.
 - Edición de número, piso, tipo y si tiene frigobar — disponible para admin y housekeeper.
 - Mapa de cuartos con estado en vivo (Disponible / Ocupado / En limpieza / Limpio / Mantenimiento / No molestar).
-- Botón **"Marcar disponible para nuevo huésped"** cuando un cuarto queda "Limpio", para no olvidar liberarlo.
-- Historial por cuarto ("Ver historial") que muestra **quién hizo qué y cuándo**: creación, ediciones, cambios de estado, solicitudes de limpieza, registros de frigobar — con el nombre real de la persona, no solo la acción.
+- Botón **"Marcar disponible para nuevo huésped"** cuando un cuarto queda "Limpio".
+- **Botón "+ Nueva reserva" directamente en el mapa de cuartos** (Cuartos), no solo en la pestaña Reservas — recepción puede crear una reserva sin pasar por "Ocupado" ni cambiar de pestaña.
+- Al marcar un cuarto "Ocupado" a mano, se pregunta si en realidad se quiere **crear la reserva real** (con huésped, fechas, folio) en vez de solo cambiar el estado sin nada detrás.
+- **Historial por cuarto simplificado**: antes mezclaba reservas, limpiezas, cargos y actividad genérica en una sola línea de tiempo ruidosa; ahora es una lista limpia de solo reservas (huésped, fechas, estado, tarifa, pago si hubo check-out). Accesible desde el detalle del cuarto **y** directamente desde la pestaña Reservas (botón "Historial del cuarto" por fila).
 
-### Notificaciones en tiempo real
-- WebSocket + Redis pub/sub: los cambios de estado de un cuarto, nuevas solicitudes de limpieza, cargos nuevos, etc. se reflejan al instante en las pantallas de todos los roles conectados, sin recargar.
-- Indicador "En vivo" / "Reconectando" en cada panel.
-
-### Tarifas y moneda
-- Tarifa fija por noche para cada uno de los 5 tipos de habitación, en soles **y** dólares (carga manual, no hay conversión automática por tipo de cambio).
-- Botón de moneda (S/ PEN ⇄ $ USD) en el header, visible en toda la app, que cambia qué cifra se muestra en frigobar, cargos y reportes. Se recuerda la preferencia.
+### Tipos de cuarto y tarifas
+- **6 tipos**: Individual, Doble, Doble Deluxe, Doble Deluxe (2 camas), Deluxe con cama extragrande, **Triple** (agregado esta sesión).
+- **Dos tarifas por tipo — profesional (estándar) y promocional (rebajada)** — soles y dólares cada una. Se elige **por reserva**, no por tipo de cuarto: el mismo cuarto puede venderse a cualquiera de las dos según el caso. (Doble Deluxe 2 camas no tiene tarifa promocional cargada — cae a la profesional automáticamente si se intenta.)
+- Aforo por tipo: Individual = 1 huésped, el resto = 2 (Triple no cambia el aforo salvo que se ajuste a propósito).
+- Botón de moneda (S/ PEN ⇄ $ USD) en el header, recuerda la preferencia.
 
 ### Frigobar
-- Catálogo de productos (bebidas/snacks) con precio en soles y dólares.
-- Stock por cuarto.
-- El housekeeper puede **agregar productos y cantidades directamente** desde el detalle del cuarto (no solo el admin) — escribe el nombre, la cantidad y el precio, y si el producto ya existe solo actualiza la cantidad.
-- Registro de consumo: al limpiar un cuarto, el housekeeper marca lo que el huésped consumió, lo que genera automáticamente un cargo.
-- El registro de consumo funciona aunque el huésped ya haya hecho check-out (antes esto se bloqueaba justo cuando el housekeeper lo necesitaba).
+- Catálogo de productos con precio en soles y dólares, stock por cuarto.
+- El housekeeper y recepción pueden agregar productos/cantidades directamente desde el detalle del cuarto.
+- Registro de consumo genera un cargo automático, detallado por producto.
+- Funciona aunque el huésped ya haya hecho check-out.
+- **Recepción ahora también puede registrar consumo** — antes el backend lo bloqueaba silenciosamente (403) aunque el botón se viera habilitado en su panel; solo `admin`/`cleaning` estaban permitidos. Corregido esta sesión.
+- **Selección de la reserva correcta al registrar consumo**: antes se tomaba "la reserva creada más recientemente" para ese cuarto, sin mirar su estado — si había una reserva activa (huésped alojado) y además una futura ya cargada para cuando se vaya, el consumo de ahora podía cobrarse a la reserva equivocada. Ahora prioriza la reserva **activa**; si no hay, la **pendiente más próxima a llegar** (permite registrar consumo incluso antes del check-in).
 
 ### Reservas
-- Crear reserva (cuarto, huésped, documento, teléfono, número de huéspedes, fechas).
-- **Editar una reserva existente**: cambiar fechas (extender o acortar estadía), cuarto, número de huéspedes, o corregir el nombre — sin tener que cancelar y volver a crear. Si se cambia de cuarto en una reserva activa, el cuarto viejo pasa a "en limpieza" y el nuevo a "ocupado" automáticamente.
-- Check-in (valida que el cuarto esté disponible y la reserva confirmada).
-- Check-out → genera automáticamente:
-  - Un cargo de "Alojamiento" (noches × tarifa, en soles y dólares).
-  - Una tarea de limpieza para el housekeeper, ya vinculada a esa reserva (para que el frigobar funcione correctamente, ver arriba).
-- **Cancelar** una reserva pendiente (libera el cuarto inmediatamente para otras fechas).
-- **Liberar no-shows**: botón que cancela en bloque todas las reservas pendientes cuya fecha de llegada ya pasó.
-- Señales visuales: "Salida vencida" (huésped activo que debió irse) y "No llegó" (reserva pendiente cuya llegada ya pasó) — tanto en la lista de reservas como en el mapa de cuartos.
-- Validación de aforo: cada tipo de cuarto tiene un máximo de huéspedes (Individual = 1, el resto = 2), y no se puede reservar por encima de eso.
-- Solicitudes del sitio web: panel separado para confirmar o rechazar (llamando al huésped) antes de que ocupen el cuarto en firme.
+- Crear reserva (cuarto, huésped, documento, teléfono, número de huéspedes, fechas, tarifa profesional/promocional).
+- Editar una reserva existente (fechas, cuarto, huéspedes, nombre) sin cancelar y recrear. Cambiar de cuarto en una reserva activa mueve los estados automáticamente (el viejo a limpieza, el nuevo a ocupado).
+- Check-in (valida cuarto disponible y reserva confirmada).
+- Check-out → genera automáticamente: cargo de "Alojamiento" (noches × tarifa según el plan elegido) y una tarea de limpieza vinculada a esa reserva.
+- Cancelar una reserva pendiente (libera el cuarto de inmediato).
+- Liberar no-shows en bloque (reservas pendientes cuya llegada ya pasó).
+- Señales visuales: "Salida vencida" y "No llegó".
+- Solicitudes del sitio web: panel para confirmar/rechazar antes de ocupar el cuarto en firme.
 - Un cuarto en mantenimiento no se ofrece en la disponibilidad del sitio web.
+- **Registro de estadías pasadas** (nuevo, esta sesión): modo separado dentro del mismo modal "Nueva reserva" (toggle "Reserva nueva" / "Estadía pasada"), para cargar una estadía que **ya terminó** y no se registró a tiempo. Calcula el total solo (noches × tarifa), permite registrar el pago (opcional), y entra directo como cerrada **sin** tocar el estado del cuarto, sin crear tarea de limpieza, sin notificaciones en vivo. Valida que las fechas sean pasadas y que no se crucen con otra estadía ya cargada en ese cuarto.
+- Selectores de check-out con horarios fijos del hotel (10:00 am / 12:00 md / 3:00 pm) en vez de que recepción escriba una hora libre.
+- Campo de identificación (INE/pasaporte) marcado explícitamente como opcional.
 
 ### Cuenta del huésped (folio) al check-out
-- Antes de confirmar el check-out, se muestra un resumen con: noches de alojamiento, todos los cargos de esa reserva (frigobar, daños, extras) con su estado, y el total a cobrar — siempre informativo, el cobro es en persona.
-- Solo se facturan automáticamente el cargo de alojamiento y los cargos ya **aprobados**; los pendientes de revisión no bloquean la salida del huésped y se cobran después.
+- Resumen antes de confirmar: noches de alojamiento, todos los cargos de esa reserva con su estado, total a cobrar.
+- Solo se facturan automáticamente el alojamiento y los cargos ya aprobados.
+- **Bug corregido esta sesión**: el folio duplicaba el alojamiento en cualquier reserva ya cerrada (lo calculaba al vuelo *y además* sumaba el cargo `room` ya guardado). Ahora excluye ese tipo de cargo del listado de "extras".
 
 ### Cargos
 - Crear cargos manuales (daño, limpieza extra, otro) en soles y dólares.
 - Flujo: pendiente → aprobado (admin) → cobrado (recepción).
-- **Corregir** un cargo pendiente (monto o descripción, por si alguien se equivocó).
-- **Anular** cualquier cargo no anulado — queda excluido de la cuenta del huésped y de los reportes.
+- Corregir un cargo pendiente. Anular cualquier cargo no anulado.
+- Cada cargo tiene ahora **`occurred_at`** (fecha económica) además de `created_at` (fecha de registro) — ver sección "Reportes" abajo.
 
-### Reportes
-- Ocupación (cuartos por estado, % de ocupación).
-- Consumo de frigobar (por producto, cantidad y revenue).
-- **Ingresos por periodo**: suma de todos los cargos no anulados (alojamiento + frigobar + daños + extras) agrupados por tipo, con selector de fechas — el reporte de gestión más completo.
+### Reportes — reconstruidos esta sesión
+Antes: solo ocupación (foto del momento), consumo de frigobar histórico, e ingresos por tipo de cargo por rango (con el bug de sumar por `created_at` en vez de la fecha real del consumo).
 
-### Marca en la app de gestión
-- Logo real (no un texto genérico) en el header, login y pantallas de carga.
-- Favicon e íconos de instalación (PWA) generados desde el logo real.
+Ahora, panel completo en `/admin/reportes` **y** `/reception/reportes` (antes solo admin):
+- **Filtros**: rango de fechas + atajos (Este mes, Mes pasado, Últimos 30 días, Este año).
+- **KPIs**: ingresos del periodo (desglose alojamiento/extras), **ocupación** (noches vendidas ÷ noches disponibles del periodo, no una foto del momento), **ADR** (tarifa promedio por noche vendida), **RevPAR** (ingreso por noche disponible — combina precio y ocupación), llegadas, huéspedes, estadía promedio.
+- **Gráficos**: ingresos por día (barras apiladas alojamiento/extras, con tooltip y vista de tabla alternativa), ingresos por tipo de cuarto, profesional vs promocional, noches vendidas por cuarto, origen de la reserva (recepción vs sitio web).
+- **Prorrateo por noche**: una estadía que cruza de mes reparte sus noches e ingreso entre ambos meses correctamente (ver `DOCUMENTO_MAESTRO.md` sección 10 para el detalle técnico) — verificado con test automatizado.
+- Colores de los gráficos elegidos y **validados** contra daltonismo (protan/deutan) y contraste, no a ojo — el primer intento (dorado + verde salvia, los colores de marca) resultó indistinguible bajo deutanopía.
+- Se mantienen: estado de cuartos ahora mismo, consumo de frigobar histórico.
 
-### Enlaces a Booking.com
-- El sitio público (footer) y la página de links del QR de la tarjeta tienen ahora un link directo a la ficha real del hotel en Booking.com.
-- **No existe sincronización automática de disponibilidad** entre Booking.com y este sistema — Booking.com no abre su API de conectividad a sistemas hechos a medida, solo a Channel Managers certificados (SiteMinder, Cloudbeds, Hotelrunner, etc.). Hoy la única forma de evitar dobles reservas entre canales es reconciliar a mano: cuando entra una reserva por Booking.com, registrarla también en este sistema (y viceversa).
+### Modo claro / oscuro (nuevo, esta sesión)
+- Toggle en el header (ícono sol/luna), preferencia guardada, sin parpadeo al cargar (script inline aplica el tema antes de la primera pintura).
+- Paleta de modo claro inspirada en los colores del sitio público (salvia + tostado sobre crema), con los tonos de acento oscurecidos lo necesario para mantener contraste legible sobre fondo claro.
+- El logo cambia automáticamente entre la versión clara (para fondo oscuro) y la de color (para fondo claro).
+
+### Notificaciones y feedback de acciones (nuevo, esta sesión)
+- Sistema de notificaciones tipo **toast** (éxito/error/info) para todas las acciones de mutación (crear/editar/cancelar reserva, cambiar estado de cuarto, registrar frigobar, etc.), reemplazando mensajes de error sueltos o silencio total en fallos.
+- Errores de carga que antes fallaban en silencio (sin mensaje al usuario) ahora avisan con un toast.
+- Sesión expirada (401) redirige sola al login en vez de dejar la pantalla rota.
+- Panel de notificaciones (campanita) rediseñado: fondo casi opaco (antes se veía "lavado"/transparente sobre el mapa de cuartos con color) y scrollbar propio del tema en vez de la barra gris nativa del navegador.
+
+### Otros componentes de UI reescritos esta sesión
+- **Selector de fecha/hora** completamente propio (`DateTimeField`), reemplazando el `<input type="datetime-local">`/`<input type="time">` nativos, cuyo selector del sistema operativo rompía el tema oscuro de la app.
+- Modal de "Nueva reserva" más ancho (2 columnas) para no sentirse apretado con todos los campos nuevos (tarifa, estadía pasada, pago).
 
 ### Seguridad (auditoría y fixes aplicados)
-Tras una revisión crítica del código encontrada con un análisis "abogado del diablo", se corrigieron 3 huecos reales:
-- **Límite de tasa (rate limit) llaveado a la IP equivocada**: detrás de Cloudflare + nginx, el límite por IP usaba la IP interna de nginx (la misma para todos los visitantes), volviéndose un balde compartido en vez de un límite por persona. Ahora lee `CF-Connecting-IP` / `X-Forwarded-For` para identificar al visitante real.
-- **Login sin límite de intentos**: se agregó un tope de 10 intentos/minuto por IP en `/auth/login` para frenar fuerza bruta.
-- **Formulario público de reserva sin validar el correo y sin protección anti-bot**: el correo ahora se valida con formato real (`EmailStr`), y se agregó un campo honeypot oculto — si un bot lo llena (los humanos nunca lo ven), la solicitud se descarta en silencio sin crear una reserva ni notificar a recepción.
+- **Condición de carrera en doble reserva — corregida esta sesión**: se agregó un constraint `EXCLUDE USING gist` en Postgres (requiere `btree_gist`) que impide dos reservas activas/pendientes en el mismo cuarto con fechas cruzadas, **a nivel de base de datos** — antes solo había un `SELECT` en Python antes de insertar, que dos requests concurrentes podían pasar ambos. Probado con 8 requests simultáneas reales contra el backend: exactamente 1 se creó, 7 rechazadas limpiamente (sin errores 500 ni duplicados).
+- Límite de tasa (rate limit) llaveado a la IP real del visitante (lee `CF-Connecting-IP`/`X-Forwarded-For` detrás de Cloudflare + nginx, no la IP interna compartida).
+- Login con tope de 10 intentos/minuto por IP.
+- Formulario público de reserva: correo validado (`EmailStr`) + honeypot anti-bot.
+- `ufw` en el VPS; queries vía ORM (sin inyección SQL).
 
-**Quedan pendientes, identificados pero diferidos a propósito** (ver sección 5, técnico):
-- Posible doble reserva por condición de carrera (sin lock ni constraint de base de datos a nivel `(cuarto, rango de fechas)`).
-- Cálculo de noches y señales de fecha (no-show, salida vencida) comparando fechas sin normalizar correctamente a la zona horaria de Perú (servidor corre en UTC, en un VPS en Alemania).
+**Diferido a propósito** (ver `DOCUMENTO_MAESTRO.md` sección 11):
+- Zona horaria UTC (servidor) vs Perú (hotel).
+- Cloudflare "Flexible" deja el tramo Cloudflare↔origen sin cifrar.
 
 ---
 
 ## 3. Decisiones de negocio confirmadas
 
-- **Tarifas fijas** por tipo de habitación, manuales, en soles y dólares — sin pasarela de pago, todo se cobra en persona.
+- **Tarifas fijas** por tipo de habitación, manuales, en soles y dólares, con dos niveles (profesional/promocional) elegibles por reserva — sin pasarela de pago, todo se cobra en persona.
 - **Todo el sistema de cargos/folio es informativo y señalativo**: el valor está en que el staff sepa qué se debe y a quién, no en procesar pagos dentro de la app.
 - **Política de cancelación con cargo (24h)** queda pendiente para una fase futura — hoy se puede cancelar una reserva pendiente sin penalidad.
-- **Aforo por tipo de habitación**: Individual = 1 huésped; Doble, Doble Deluxe, Doble Deluxe (2 camas) y Deluxe con cama extragrande = 2 huéspedes. (Ajustable si la realidad del hotel es distinta.)
+- **Aforo por tipo de habitación**: Individual = 1 huésped; el resto = 2 huéspedes.
+- **Estadías pasadas**: solo se captura alojamiento + pago (no cargos extra como frigobar en el mismo formulario) — decisión explícita para mantener el formulario simple; cargos extra de una estadía pasada se agregan después por el flujo normal de Cargos si hace falta.
+- **Reportes**: visibles para admin y recepción (no solo admin) — recepción necesita ver ocupación/ingresos para su propio trabajo diario, no solo el dueño.
 
 ---
 
 ## 4. Estado técnico actual — EN PRODUCCIÓN
 
-El sistema está desplegado y en vivo, no solo en desarrollo local:
-
 - **Sitio público**: https://apu-garden-lodge.com — en vivo.
 - **Sistema de gestión**: https://gestion.apu-garden-lodge.com — en vivo.
-- **Infraestructura**: VPS Hetzner (CX23, Nuremberg) corriendo Docker Compose (Postgres, Redis, backend, frontend de gestión, sitio público, nginx). DNS y HTTPS gestionados por Cloudflare (proxy activado, modo SSL Flexible). Detalle completo del despliegue y de los problemas ya resueltos en el camino: ver [DEPLOY.md](DEPLOY.md).
-- Secretos de producción (contraseña de DB, JWT, admin) ya reemplazados — distintos de los de desarrollo local.
-- Migraciones de base de datos aplicadas en producción (Alembic) — base de datos arrancó vacía y limpia.
-- Existe la cuenta de admin (creada manualmente con `python -m app.seed`, ver DEPLOY.md — este paso no es automático).
-- **14 cuartos reales cargados** en producción (piso 1: 101-104, piso 2: 201-205, piso 3: 301-305), con frigobar activado en todos.
-- El catálogo de frigobar está vacío — listo para cargarse desde la app misma.
-- El sitio público apunta a la API real de producción (`gestion.apu-garden-lodge.com/api`).
-- WebSocket de notificaciones en tiempo real verificado funcionando a través de Cloudflare en producción.
-- **Ciclo completo verificado en vivo contra producción** (no solo en desarrollo): reserva desde el sitio web → confirmar → check-in → cargo → folio (matemática de noches × tarifa + cargos confirmada exacta) → check-out (genera cargo de alojamiento, factura cargos aprobados, crea tarea de limpieza) → WebSocket recibiendo los eventos en tiempo real durante todo el proceso. Se usó una reserva claramente marcada como prueba y se limpió después (cargos anulados, cuarto repuesto a "disponible"); ver nota en sección 5 sobre el registro histórico que queda.
+- **Infraestructura**: VPS Hetzner (CX23, Nuremberg) corriendo Docker Compose. DNS y HTTPS por Cloudflare (proxy activado, SSL Flexible). Detalle completo en [DOCUMENTO_MAESTRO.md](DOCUMENTO_MAESTRO.md) y [DEPLOY.md](DEPLOY.md).
+- **Deploy automático**: cada push a `main` en cualquiera de los dos repos dispara GitHub Actions → SSH → `deploy.sh` (pull + rebuild + migraciones). Ya no es un paso manual.
+- Migraciones aplicadas en producción — cadena actual hasta `d9a1c5e7b3f8` (fecha económica del cargo).
+- 14 cuartos reales cargados, con frigobar activado.
+- **Hay datos de prueba del propio dueño mezclados con reservas reales** en la base de producción — pendiente de identificar (vía consulta SQL de solo lectura) y limpiar. Ver `DOCUMENTO_MAESTRO.md` sección 11, punto 1.
+- Respaldos automáticos de la base de datos configurados (cron).
+- WebSocket de notificaciones en tiempo real verificado funcionando a través de Cloudflare.
 
 ## 5. Lo que queda pendiente
 
-### Operativo (lo hace el dueño/staff, sin tocar código)
-1. Crear las cuentas reales de recepción y de cada housekeeper (admin → Usuarios) — hoy solo existe el admin.
-2. Cargar el catálogo real de frigobar (productos y precios).
-3. Cambiar la contraseña del admin (la actual es una generada al azar para el primer acceso).
-4. Confirmar un correo de contacto real — todavía no existe uno; se quitó del sitio hasta que lo haya.
-5. Coordenadas GPS exactas del lodge (hoy el mapa usa la dirección en texto).
-6. Crear/completar el perfil de **Google Business Profile** — el paso más importante para aparecer en búsquedas de "hotel Urubamba" / "hotel Cusco", y es 100% gestión del dueño, no código.
-7. Reconciliación manual con Booking.com (ver sección de Booking.com arriba) — no hay forma de automatizarla sin contratar un Channel Manager de pago.
+Ver [`DOCUMENTO_MAESTRO.md`](DOCUMENTO_MAESTRO.md) sección 11 para la lista completa y actualizada (operativo + técnico). En resumen, lo más relevante hoy:
 
-### Técnico
-1. **Respaldos automáticos de la base de datos — no configurados aún.** Hoy si el VPS falla, se pierde todo. El script ya existe (`scripts/backup.sh`), solo falta agregarlo al cron del servidor. Ver DEPLOY.md, sección "Respaldo de la base de datos". Es la tarea técnica más urgente.
-2. **Confirmar el Cloud Firewall de Hetzner** — nunca se confirmó si está creado y adjuntado al servidor (es una capa de red separada del firewall ufw del sistema, que sí está activo).
-3. El modo SSL "Flexible" de Cloudflare deja el tramo Cloudflare↔servidor sin cifrar (aceptable para este tamaño de proyecto). Si más adelante se quiere cerrar del todo, hay que instalar un certificado de origen y pasar a "Full (strict)".
-4. **Posible doble reserva por condición de carrera**: dos solicitudes simultáneas por el último cuarto de un tipo podrían, en teoría, crear dos reservas que se cruzan — no hay un `EXCLUDE` constraint de Postgres protegiendo esto a nivel de base de datos. Probabilidad baja al volumen actual, impacto alto si pasa. Diferido a propósito.
-5. **Zona horaria**: el servidor corre en UTC (VPS en Alemania) pero el hotel opera en hora de Perú (UTC-5); el cálculo de noches y las señales de "no-show"/"salida vencida" pueden desviarse unas horas en los bordes del día. Diferido a propósito.
-6. Queda un registro de prueba en el sistema por la verificación end-to-end de hoy: una reserva "PRUEBA SISTEMA (borrar)" marcada como `checked_out` (no se puede borrar reservas, solo cancelar las pendientes) y una tarea de limpieza pendiente sin cerrar para el cuarto 106 (se necesita una cuenta con rol "limpieza", que todavía no existe, para completarla formalmente). Ninguno de los dos afecta reportes ni disponibilidad.
-7. Mejoras visuales/contenido adicionales al sitio público (pendiente de indicaciones específicas del dueño).
+1. **Limpiar datos de prueba de producción** (bloqueado por permiso de esta sesión para correr SQL vía SSH — requiere aprobación del usuario o que él mismo corra la consulta).
+2. Crear cuentas reales de recepción/housekeeper si faltan, cargar catálogo real de frigobar, cambiar contraseña del admin.
+3. Google Business Profile y backlinks — el paso más importante para aparecer en búsquedas, 100% del dueño.
+4. Confirmar Cloud Firewall de Hetzner.
+5. Zona horaria UTC vs Lima — diferido, sigue abierto.
+6. Cloudflare Flexible → Full (strict) — opcional, diferido.
+7. Monitoreo de uptime — no configurado, tarea del dueño.
