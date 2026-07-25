@@ -31,9 +31,12 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 
 
 def _nightly_rate(rate: RoomTypeRate | None, plan: RatePlan) -> tuple[Decimal, Decimal]:
-    """Precio por noche según la tarifa de la reserva. Misma regla que usa el
-    cobro real (_rate_for_plan en routers/reservations.py): si el tipo no tiene
-    promocional cargada, cae a la profesional."""
+    """Precio por noche según la tarifa VIGENTE. Misma regla que usa el cobro
+    real (_rate_for_plan en routers/reservations.py): si el tipo no tiene
+    promocional cargada, cae a la profesional.
+
+    Solo se usa como respaldo para estadías que todavía no se facturaron (las
+    activas). Para las ya cerradas manda el cargo real — ver stats_report."""
     if rate is None:
         return Decimal("0"), Decimal("0")
     if plan == RatePlan.promotional and rate.price_pen_promo is not None and rate.price_usd_promo is not None:
@@ -94,6 +97,25 @@ def stats_report(
         .all()
     )
 
+    # Lo que se facturó de alojamiento en cada estadía ya cerrada. El reporte
+    # usa ESTO y no las tarifas vigentes: si mañana suben los precios, los
+    # meses pasados no pueden moverse solos, y si recepción ajusta un cargo
+    # (descuento, corrección), el reporte muestra lo que de verdad se cobró.
+    # Las estadías activas todavía no tienen cargo — esas caen a la tarifa
+    # vigente, que es justo a la que se les va a facturar.
+    room_charges: dict = {}
+    if reservations:
+        room_charges = {
+            charge.reservation_id: charge
+            for charge in db.query(Charge)
+            .filter(
+                Charge.type == ChargeType.room,
+                Charge.status != ChargeStatus.cancelled,
+                Charge.reservation_id.in_([r.id for r in reservations]),
+            )
+            .all()
+        }
+
     nights_sold = 0
     lodging_pen = Decimal("0")
     lodging_usd = Decimal("0")
@@ -117,23 +139,41 @@ def stats_report(
         room = room_by_id.get(reservation.room_id)
         if room is None:
             continue
-        pen_rate, usd_rate = _nightly_rate(rates.get(room.type), reservation.rate_plan)
-
-        nights_in_period = [night for night in _stay_nights(reservation) if start <= night <= end]
+        stay_nights = _stay_nights(reservation)
+        nights_in_period = [night for night in stay_nights if start <= night <= end]
         if not nights_in_period:
             continue
 
         count = len(nights_in_period)
-        pen_total = pen_rate * count
-        usd_total = usd_rate * count
+        charge = room_charges.get(reservation.id)
+
+        if charge is not None:
+            # Se multiplica ANTES de dividir para que una estadía contenida
+            # entera en el periodo devuelva el importe exacto del cargo, sin
+            # arrastrar el redondeo de una división intermedia.
+            total_nights = len(stay_nights)
+            pen_total = Decimal(charge.amount_pen) * count / total_nights
+            usd_total = Decimal(charge.amount_usd) * count / total_nights
+        else:
+            pen_rate, usd_rate = _nightly_rate(rates.get(room.type), reservation.rate_plan)
+            pen_total = pen_rate * count
+            usd_total = usd_rate * count
+
+        pen_total = pen_total.quantize(Decimal("0.01"))
+        usd_total = usd_total.quantize(Decimal("0.01"))
 
         nights_sold += count
         lodging_pen += pen_total
         lodging_usd += usd_total
 
+        # Para la serie diaria se reparte parejo entre las noches del periodo:
+        # el cargo es un importe único por la estadía, no trae detalle noche
+        # por noche.
+        pen_per_night = (pen_total / count).quantize(Decimal("0.01"))
+        usd_per_night = (usd_total / count).quantize(Decimal("0.01"))
         for night in nights_in_period:
-            daily_lodging[night][0] += pen_rate
-            daily_lodging[night][1] += usd_rate
+            daily_lodging[night][0] += pen_per_night
+            daily_lodging[night][1] += usd_per_night
 
         # Llegadas: estadías que EMPIEZAN dentro del periodo. Es lo que
         # responde "cuántos huéspedes recibimos este mes", distinto de las
@@ -141,7 +181,7 @@ def stats_report(
         if start <= reservation.check_in.date() <= end:
             arrivals += 1
             guests += reservation.guests
-            stay_lengths.append(len(_stay_nights(reservation)))
+            stay_lengths.append(len(stay_nights))
 
         add(by_type, room.type.value, ROOM_TYPE_LABEL[room.type], count, pen_total, usd_total)
         add(by_plan, reservation.rate_plan.value, RATE_PLAN_LABEL[reservation.rate_plan], count, pen_total, usd_total)

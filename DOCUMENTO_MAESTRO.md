@@ -194,6 +194,8 @@ Camino **separado** del flujo en vivo (crear → check-in → check-out), para c
 ### Reportes (`GET /reports/stats`) — prorrateo por noche
 El indicador central no es "reservas del mes" sino **noches**. Una estadía del 28 de julio al 3 de agosto aporta 4 noches (28,29,30,31) a julio y 3 (1,2,3) a agosto, cada una con su ingreso — así ocupación/ADR/RevPAR son comparables entre periodos sin que una estadía larga distorsione el mes en que empieza o termina. Cuenta reservas `active` (para reflejar huéspedes alojados ahora mismo) y `checked_out`, nunca `pending` ni `cancelled`. Ver `app/routers/reports.py::stats_report` para la implementación completa (`_stay_nights`, prorrateo, cortes por tipo/tarifa/cuarto/origen).
 
+**De dónde sale el ingreso:** del **cargo de alojamiento realmente facturado**, prorrateado entre las noches de la estadía — no de la tarifa vigente. Es lo que garantiza que subir los precios no reescriba los ingresos de meses ya cerrados, y que un cargo ajustado a mano (descuento, corrección) se refleje tal cual en el reporte. Las estadías `active` todavía no tienen cargo emitido: esas sí usan la tarifa vigente, que es justo a la que se les va a facturar.
+
 **Por qué el reporte puede mostrar más actividad de la que ves en "Reservas"**: la pestaña Reservas oculta a propósito las `checked_out`/`cancelled` (para no acumular filas muertas), pero **sí** cuentan en Reportes. Si el número de "Llegadas" o "Ingresos" del mes no cuadra con lo que ves en la lista de Reservas, casi seguro hay estadías ya cerradas ese mismo mes que ya no se muestran ahí.
 
 ### Roles y permisos (backend, `require_role`)
@@ -206,7 +208,7 @@ El indicador central no es "reservas del mes" sino **noches**. Una estadía del 
 ## 11. Pendientes
 
 **Operativo (lo hace el dueño/staff, sin código):**
-1. **Limpiar datos de prueba de producción** — el dueño confirmó que hay reservas/registros que él mismo creó probando el sistema, mezclados con reservas reales. Identificarlos y borrarlos requiere una consulta SQL de solo lectura contra producción primero (para confirmar cuáles son cuáles antes de borrar nada) — bloqueado por el clasificador automático de permisos de esta sesión al intentar correr el comando SSH; pendiente que el usuario apruebe el permiso o corra la consulta él mismo (ver mensaje de la sesión donde se ofrecieron ambas rutas).
+1. **Limpiar datos de prueba de producción** — ya hay herramienta: `scripts/limpiar-datos-prueba.sh`. El dueño confirmó que lo único real son las primeras reservas registradas (todo lo anterior fue ensayo), así que el criterio es una **fecha de corte**. El script corre en modo simulacro por defecto: lista qué conservaría y qué borraría sin tocar nada, y esa lista *es* la consulta de verificación que antes había que hacer aparte. Solo con `--ejecutar` borra, y hace respaldo + pide confirmación escrita antes.
 2. Crear cuentas reales de recepción y de cada housekeeper si aún no existen todas.
 3. Cargar/completar el catálogo real de frigobar.
 4. Cambiar la contraseña del admin si sigue siendo la generada al inicio.
@@ -222,7 +224,7 @@ El indicador central no es "reservas del mes" sino **noches**. Una estadía del 
 
 **Ya resuelto — corregir en futuras lecturas de este doc si aparece como pendiente en otro lado:**
 - ~~Posible doble reserva por condición de carrera~~ → resuelto con constraint `EXCLUDE` en Postgres (migración `c7d2f4a8e1b6`), probado con 8 requests concurrentes reales.
-- ~~Respaldos automáticos de la BD~~ → configurados vía cron.
+- ~~Respaldos automáticos de la BD~~ → los instala `deploy.sh` solo (paso 4/5), de forma idempotente: diario a las 03:00, rotación 14 días. Antes dependía de haber corrido `crontab -e` a mano en el servidor, y `DEPLOY.md` y este documento se contradecían sobre si estaba hecho; ahora no importa, cada despliegue lo deja configurado. **Sigue faltando la copia fuera del VPS**: un respaldo en el mismo disco que la base no protege contra perder el servidor.
 - ~~Reportes solo para admin~~ → recepción también tiene acceso desde esta sesión.
 
 ---
@@ -236,5 +238,5 @@ El indicador central no es "reservas del mes" sino **noches**. Una estadía del 
 | Error 521 en el sitio | Modo SSL de Cloudflare mal | Debe estar en **Flexible** (el origen sirve HTTP, no HTTPS) |
 | El admin no puede entrar tras recrear la BD | Falta el seed | `docker compose ... exec backend python -m app.seed` |
 | Una petición da 403 desde un script | Cloudflare bloquea user-agents "de bot" | Usar un User-Agent de navegador normal |
-| Un reporte no cuadra con lo que se ve en "Reservas" | Reportes cuenta `checked_out` que Reservas ya oculta | Ver sección 10, "Reportes — prorrateo por noche" |
+| Un reporte no cuadra con lo que se ve en "Reservas" | Reportes cuenta `checked_out` que Reservas ya oculta | Ver sección 10, "Reportes — prorrateo por noche". Si el sobrante son pruebas viejas: `./scripts/limpiar-datos-prueba.sh AAAA-MM-DD` (simulacro) |
 | El botón de frigobar parece no hacer nada para recepción | Ya corregido — antes el backend bloqueaba a `reception` en `/minibar/consumptions` sin que el frontend avisara | Confirmar que el deploy con el fix ya salió (commit de esta sesión) |

@@ -1,0 +1,4 @@
+# Los scripts corren en Linux (VPS). Si alguien los edita en Windows con otra
+# configuración de git y sube CRLF, el despliegue falla con errores crípticos
+# de `\r`. Esto lo fuerza a LF pase lo que pase.
+*.sh text eol=lf

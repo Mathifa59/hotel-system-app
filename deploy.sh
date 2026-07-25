@@ -32,18 +32,32 @@ GESTION_DIR="$HOME/apu-gestion-system"
 WEB_DIR="$HOME/apu-garden-lodge-web"
 COMPOSE=(docker compose -f docker-compose.yml -f docker-compose.prod.yml)
 
-echo "==> 1/4  Trayendo código nuevo desde GitHub..."
+echo "==> 1/5  Trayendo código nuevo desde GitHub..."
 git -C "$WEB_DIR" pull --ff-only origin main
 git -C "$GESTION_DIR" pull --ff-only origin main
 
-echo "==> 2/4  Reconstruyendo contenedores (backend, frontend, web)..."
+echo "==> 2/5  Reconstruyendo contenedores (backend, frontend, web)..."
 cd "$GESTION_DIR"
 "${COMPOSE[@]}" up -d --build
 
-echo "==> 3/4  Aplicando migraciones de base de datos..."
+echo "==> 3/5  Aplicando migraciones de base de datos..."
 "${COMPOSE[@]}" exec -T backend alembic upgrade head
 
-echo "==> 4/4  Estado final:"
+# El respaldo se instala desde acá y no a mano con `crontab -e` porque un cron
+# que hay que acordarse de configurar es justamente el que termina sin
+# configurar (fue el caso hasta hoy). Es idempotente: si ya está, no hace nada.
+echo "==> 4/5  Verificando el respaldo automático..."
+mkdir -p "$GESTION_DIR/backups"
+chmod +x "$GESTION_DIR/scripts/backup.sh"
+if crontab -l 2>/dev/null | grep -qF "scripts/backup.sh"; then
+  echo "    Ya estaba configurado."
+else
+  CRON_LINE="0 3 * * * $GESTION_DIR/scripts/backup.sh >> $GESTION_DIR/backups/backup.log 2>&1"
+  (crontab -l 2>/dev/null || true; echo "$CRON_LINE") | crontab -
+  echo "    Instalado: respaldo diario a las 03:00 (hora del servidor)."
+fi
+
+echo "==> 5/5  Estado final:"
 "${COMPOSE[@]}" ps
 
 echo ""

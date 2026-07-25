@@ -113,20 +113,23 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml exec backend ale
 
 ## Respaldo de la base de datos
 
-**Estado actual: NO configurado.** El repo incluye `scripts/backup.sh` (dump comprimido con rotación de 14 días) pero **no está agregado al cron del servidor** — hoy, si el disco del VPS falla, se pierde toda la base de datos de producción (reservas, cargos, usuarios, los 42 cuartos). Esto es la tarea técnica pendiente más importante.
+**Estado: automático.** `deploy.sh` instala el cron por sí solo (paso 4/5) en el primer despliegue: `scripts/backup.sh` corre **todos los días a las 03:00** hora del servidor, con rotación de 14 días. No hay que editar `crontab` a mano; la instalación es idempotente, así que correr `deploy.sh` muchas veces no duplica la entrada.
 
-Para activarlo:
+Para confirmar que quedó activo:
 
 ```bash
-ssh deploy@<servidor>
-crontab -e
+ssh apu-garden-lodge "crontab -l | grep backup"
 ```
 
-```cron
-0 3 * * * /home/deploy/apu-gestion-system/scripts/backup.sh >> /home/deploy/apu-gestion-system/backups/backup.log 2>&1
+Y para ver el resultado de los últimos respaldos:
+
+```bash
+ssh apu-garden-lodge "tail -20 ~/apu-gestion-system/backups/backup.log; ls -lh ~/apu-gestion-system/backups/"
 ```
 
-Y, como segundo paso (no lo hace el script), copiar `backups/` fuera del servidor — otro disco, un bucket S3/Backblaze, o `rsync` a otra máquina — para que un respaldo en el mismo VPS no sea el único respaldo.
+El script escribe primero a un archivo temporal y solo lo renombra a `.sql.gz` si el dump terminó bien y el gzip está íntegro. Si algo falla, no deja archivo: **nunca vas a tener un respaldo de 0 bytes que parezca bueno.** Revisa el log si un día no aparece el archivo del día.
+
+⚠️ **Falta el paso de copia externa.** Los respaldos viven en el mismo VPS que la base de datos, así que protegen contra un borrado accidental o una migración mal aplicada, pero **no contra la pérdida del servidor**. Para cubrir eso hay que copiar `backups/` fuera: otro disco, un bucket S3/Backblaze, o `rsync` a otra máquina.
 
 ### Restaurar un respaldo
 
