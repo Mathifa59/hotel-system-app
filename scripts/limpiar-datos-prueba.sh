@@ -107,6 +107,9 @@ DELETE FROM reservations          WHERE id             IN (SELECT id FROM _prueb
 DELETE FROM cleaning_requests WHERE reservation_id IS NULL AND created_at < :'corte'::timestamptz;
 
 -- Ruido de la etapa de pruebas: avisos viejos en la campana e historial.
+-- notification_reads primero: tiene FK a notifications sin ON DELETE CASCADE.
+DELETE FROM notification_reads
+WHERE notification_id IN (SELECT id FROM notifications WHERE created_at < :'corte'::timestamptz);
 DELETE FROM notifications WHERE created_at < :'corte'::timestamptz;
 DELETE FROM activity_logs WHERE created_at < :'corte'::timestamptz;
 
