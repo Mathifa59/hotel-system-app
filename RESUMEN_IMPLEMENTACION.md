@@ -5,7 +5,7 @@ Este documento resume todo lo construido hasta ahora en los dos proyectos:
 - **Apu Garden Lodge Web** — sitio público (marketing + reservas)
 - **Apu Gestion System** — sistema interno de gestión del hotel (admin / recepción / limpieza)
 
-> Última actualización: 2026-07-24. Para arquitectura/deploy/pendientes, ver [`DOCUMENTO_MAESTRO.md`](DOCUMENTO_MAESTRO.md).
+> Última actualización: 2026-07-31. Para arquitectura/deploy/pendientes, ver [`DOCUMENTO_MAESTRO.md`](DOCUMENTO_MAESTRO.md).
 
 ---
 
@@ -91,6 +91,14 @@ Tres roles de usuario: **admin**, **recepción**, **limpieza** (housekeeper). Ca
 - Selectores de check-out con horarios fijos del hotel (10:00 am / 12:00 md / 3:00 pm) en vez de que recepción escriba una hora libre.
 - Campo de identificación (INE/pasaporte) marcado explícitamente como opcional.
 
+### Adelanto y voucher de reserva (nuevo, esta sesión)
+- **Adelanto al reservar**: al crear una reserva nueva, recepción puede registrar opcionalmente el monto que el huésped pagó de adelanto (método, soles y dólares). Antes el sistema solo registraba el pago final en el check-out — no había forma de anotar un adelanto al momento de reservar.
+- **Voucher de reserva**: botón "Voucher" en cada reserva → página bilingüe (ES/EN) lista para imprimir o guardar como PDF (`window.print()` del navegador), con logo, dirección, teléfono y RUC del hotel, número correlativo (`RES-0001`, `RES-0002`...), datos de la estadía, tarifa, adelanto pagado y saldo pendiente al llegar. Incluye la nota explícita "no es un comprobante de pago" en ambos idiomas — es una constancia de reserva, no una boleta/factura (eso quedó fuera de alcance a propósito).
+- El número de voucher se asigna la **primera vez** que alguien lo pide (no al crear la reserva), así el correlativo sigue el orden real de entrega, no el de captura en el sistema.
+- Funciona igual desde el celular: el panel ya es una PWA instalable, así que recepción puede generar el voucher estando fuera del hotel.
+- **Accesible desde dos lugares**: la lista de "Reservas" (para reservas activas/pendientes) y el **historial del cuarto** (para reservas que ya hicieron check-out o se cancelaron, que la lista principal oculta a propósito). El botón del historial solo se muestra a recepción — ese mismo componente también lo usan admin y limpieza, pero la página del voucher vive bajo `/reception` y redirige a cualquier otro rol.
+- De paso, se corrigió el horario oficial de check-in/check-out (11:00 am / 10:00 am, con nota de flexibilidad) que estaba contradicho en tres lugares distintos del sitio público y del sistema.
+
 ### Cuenta del huésped (folio) al check-out
 - Resumen antes de confirmar: noches de alojamiento, todos los cargos de esa reserva con su estado, total a cobrar.
 - Solo se facturan automáticamente el alojamiento y los cargos ya aprobados.
@@ -157,21 +165,21 @@ Ahora, panel completo en `/admin/reportes` **y** `/reception/reportes` (antes so
 - **Sitio público**: https://apu-garden-lodge.com — en vivo.
 - **Sistema de gestión**: https://gestion.apu-garden-lodge.com — en vivo.
 - **Infraestructura**: VPS Hetzner (CX23, Nuremberg) corriendo Docker Compose. DNS y HTTPS por Cloudflare (proxy activado, SSL Flexible). Detalle completo en [DOCUMENTO_MAESTRO.md](DOCUMENTO_MAESTRO.md) y [DEPLOY.md](DEPLOY.md).
-- **Deploy automático**: cada push a `main` en cualquiera de los dos repos dispara GitHub Actions → SSH → `deploy.sh` (pull + rebuild + migraciones). Ya no es un paso manual.
-- Migraciones aplicadas en producción — cadena actual hasta `d9a1c5e7b3f8` (fecha económica del cargo).
+- **Deploy automático**: cada push a `main` en cualquiera de los dos repos dispara GitHub Actions → SSH → `deploy.sh` (pull + rebuild + migraciones). Ya no es un paso manual. Verificado además de forma directa por SSH (no solo por Actions) — acceso configurado esta sesión con llave propia.
+- Migraciones aplicadas en producción — cadena actual hasta `b8e4f6a2c9d1` (voucher de reserva), confirmada contra la base real (`alembic current`).
 - 14 cuartos reales cargados, con frigobar activado.
-- **Hay datos de prueba del propio dueño mezclados con reservas reales** en la base de producción — pendiente de identificar (vía consulta SQL de solo lectura) y limpiar. Ver `DOCUMENTO_MAESTRO.md` sección 11, punto 1.
-- Respaldos automáticos de la base de datos configurados (cron).
+- ~~Datos de prueba mezclados con reservas reales~~ → **limpiados esta sesión.** Solo quedan las 2 reservas reales (confirmadas por el dueño); las de prueba se borraron con `scripts/limpiar-datos-prueba.sh`, con respaldo automático previo y confirmación escrita. El propio simulacro detectó y permitió corregir un bug del script (FK de `notification_reads` sin cubrir) antes de tocar datos reales.
+- Respaldos automáticos de la base de datos **confirmados activos** (`crontab -l` verificado directamente en el servidor): diario 03:00, rotación 14 días.
 - WebSocket de notificaciones en tiempo real verificado funcionando a través de Cloudflare.
 
 ## 5. Lo que queda pendiente
 
 Ver [`DOCUMENTO_MAESTRO.md`](DOCUMENTO_MAESTRO.md) sección 11 para la lista completa y actualizada (operativo + técnico). En resumen, lo más relevante hoy:
 
-1. **Limpiar datos de prueba de producción** (bloqueado por permiso de esta sesión para correr SQL vía SSH — requiere aprobación del usuario o que él mismo corra la consulta).
-2. Crear cuentas reales de recepción/housekeeper si faltan, cargar catálogo real de frigobar, cambiar contraseña del admin.
-3. Google Business Profile y backlinks — el paso más importante para aparecer en búsquedas, 100% del dueño.
-4. Confirmar Cloud Firewall de Hetzner.
-5. Zona horaria UTC vs Lima — diferido, sigue abierto.
+1. Crear cuentas reales de housekeeper si faltan (recepción y admin ya existen), cargar catálogo real de frigobar, cambiar contraseña del admin si sigue siendo la de prueba.
+2. Google Business Profile y backlinks — el paso más importante para aparecer en búsquedas, 100% del dueño.
+3. Confirmar Cloud Firewall de Hetzner.
+4. Zona horaria UTC vs Lima — diferido, sigue abierto.
+5. Copia de los respaldos automáticos **fuera** del VPS — hoy viven en el mismo disco que la base de datos.
 6. Cloudflare Flexible → Full (strict) — opcional, diferido.
 7. Monitoreo de uptime — no configurado, tarea del dueño.

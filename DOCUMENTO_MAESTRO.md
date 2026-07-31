@@ -8,7 +8,7 @@
 > - [`RESUMEN_IMPLEMENTACION.md`](RESUMEN_IMPLEMENTACION.md) — lista exhaustiva de funcionalidades, feature por feature.
 > - [`DEPLOY.md`](DEPLOY.md) — guía de despliegue.
 >
-> Última actualización: 2026-07-24.
+> Última actualización: 2026-07-31.
 
 ---
 
@@ -133,12 +133,12 @@ El script [`deploy.sh`](deploy.sh) hace, en el servidor: toma un candado `flock`
 | Cosa | Detalle |
 |---|---|
 | **VPS** | Hetzner CX23, Nuremberg, Ubuntu. IP: `188.34.202.143`. |
-| **Acceso SSH** | Alias `apu-garden-lodge` (configurado en `~/.ssh/config`, llave `apu_garden_lodge_hetzner`). Usuario `deploy`. |
+| **Acceso SSH** | Alias `apu-garden-lodge` (configurado en `~/.ssh/config`). Usuario `deploy`. La contraseña de root generada por Hetzner NO sirve por SSH (el servidor solo acepta llave — confirmado directamente al intentarlo); solo sirve para la consola web. Si el acceso SSH se pierde en una máquina nueva, hay que generar una llave e instalarla en el servidor a mano (vía la consola web + `authorized_keys`), no asumir que una contraseña de root la reemplaza. |
 | **DNS + HTTPS** | Cloudflare. Proxy activado (nube naranja). Modo SSL: **Flexible** (diferido pasar a Full-strict, ver sección 11). |
 | **Dominios** | `apu-garden-lodge.com` (+ `www`) → sitio público. `gestion.apu-garden-lodge.com` → gestión. |
 | **Firewall del sistema** | `ufw` activo en el VPS (puertos 80, 443, SSH). Cloud Firewall de Hetzner (capa de red aparte) — **nunca confirmado si está adjuntado**, revisar en el panel. |
 | **GitHub** | Dos repos bajo la cuenta `Mathifa59` (ver tabla sección 1). |
-| **Respaldos de BD** | **Configurados** — cron corriendo `scripts/backup.sh` en el servidor (agregado directamente por SSH, fuera del flujo normal de deploy). |
+| **Respaldos de BD** | **Configurados y confirmados** — `deploy.sh` instala el cron solo (paso 4/5, idempotente), diario 03:00, rotación 14 días. Verificado con `crontab -l` directamente en el servidor. |
 
 **Contenedores en producción** (6): `db` (Postgres), `redis`, `backend` (FastAPI), `frontend` (paneles de gestión), `web` (sitio público), `nginx`.
 
@@ -167,7 +167,7 @@ El script [`deploy.sh`](deploy.sh) hace, en el servidor: toma un candado `flock`
 Detalle completo en [`RESUMEN_IMPLEMENTACION.md`](RESUMEN_IMPLEMENTACION.md). En una línea cada bloque:
 
 - **Sitio público**: 5 tipos de cuarto con galería y modal de detalle, buscador de disponibilidad real, formulario de reserva, servicios/amenities, FAQ, páginas Nosotros/Novedad/Contacto con mapa, bilingüe, SEO técnico completo.
-- **Gestión**: 3 roles (admin/recepción/limpieza), mapa de cuartos en vivo, notificaciones en tiempo real, 6 tipos de cuarto con tarifa profesional/promocional elegible por reserva, frigobar configurable, ciclo completo de reserva (crear/editar/confirmar/check-in/folio/check-out/cancelar), **registro de estadías pasadas** (walk-ins no cargados a tiempo), **reportes con KPIs** (ocupación, ADR, RevPAR, ingresos por día/tipo/tarifa/origen) accesibles para admin y recepción, modo claro/oscuro, notificaciones tipo toast, historial simplificado por cuarto.
+- **Gestión**: 3 roles (admin/recepción/limpieza), mapa de cuartos en vivo, notificaciones en tiempo real, 6 tipos de cuarto con tarifa profesional/promocional elegible por reserva, frigobar configurable, ciclo completo de reserva (crear/editar/confirmar/check-in/folio/check-out/cancelar), **adelanto al reservar + voucher de reserva** (constancia bilingüe imprimible/PDF, no es comprobante de pago), **registro de estadías pasadas** (walk-ins no cargados a tiempo), **reportes con KPIs** (ocupación, ADR, RevPAR, ingresos por día/tipo/tarifa/origen) accesibles para admin y recepción, modo claro/oscuro, notificaciones tipo toast, historial simplificado por cuarto.
 
 ---
 
@@ -208,13 +208,12 @@ El indicador central no es "reservas del mes" sino **noches**. Una estadía del 
 ## 11. Pendientes
 
 **Operativo (lo hace el dueño/staff, sin código):**
-1. **Limpiar datos de prueba de producción** — ya hay herramienta: `scripts/limpiar-datos-prueba.sh`. El dueño confirmó que lo único real son las primeras reservas registradas (todo lo anterior fue ensayo), así que el criterio es una **fecha de corte**. El script corre en modo simulacro por defecto: lista qué conservaría y qué borraría sin tocar nada, y esa lista *es* la consulta de verificación que antes había que hacer aparte. Solo con `--ejecutar` borra, y hace respaldo + pide confirmación escrita antes.
-2. Crear cuentas reales de recepción y de cada housekeeper si aún no existen todas.
-3. Cargar/completar el catálogo real de frigobar.
-4. Cambiar la contraseña del admin si sigue siendo la generada al inicio.
-5. Definir un correo de contacto real.
-6. Google Business Profile, backlinks (TripAdvisor, Booking.com, etc.) — ver `RESUMEN_IMPLEMENTACION.md` para el detalle de SEO.
-7. **Monitoreo de uptime** (ej. UptimeRobot) — no configurado, es tarea del dueño (no requiere código).
+1. Crear cuentas reales de cada housekeeper si aún no existen (recepción y admin ya están creadas).
+2. Cargar/completar el catálogo real de frigobar.
+3. Cambiar la contraseña del admin si sigue siendo la generada al inicio.
+4. Definir un correo de contacto real.
+5. Google Business Profile, backlinks (TripAdvisor, Booking.com, etc.) — ver `RESUMEN_IMPLEMENTACION.md` para el detalle de SEO.
+6. **Monitoreo de uptime** (ej. UptimeRobot) — no configurado, es tarea del dueño (no requiere código).
 
 **Técnico:**
 1. Confirmar el Cloud Firewall de Hetzner (capa de red separada de `ufw`) — nunca verificado.
@@ -224,8 +223,10 @@ El indicador central no es "reservas del mes" sino **noches**. Una estadía del 
 
 **Ya resuelto — corregir en futuras lecturas de este doc si aparece como pendiente en otro lado:**
 - ~~Posible doble reserva por condición de carrera~~ → resuelto con constraint `EXCLUDE` en Postgres (migración `c7d2f4a8e1b6`), probado con 8 requests concurrentes reales.
-- ~~Respaldos automáticos de la BD~~ → los instala `deploy.sh` solo (paso 4/5), de forma idempotente: diario a las 03:00, rotación 14 días. Antes dependía de haber corrido `crontab -e` a mano en el servidor, y `DEPLOY.md` y este documento se contradecían sobre si estaba hecho; ahora no importa, cada despliegue lo deja configurado. **Sigue faltando la copia fuera del VPS**: un respaldo en el mismo disco que la base no protege contra perder el servidor.
+- ~~Respaldos automáticos de la BD~~ → los instala `deploy.sh` solo (paso 4/5), de forma idempotente: diario a las 03:00, rotación 14 días. Confirmado activo directamente en el servidor (`crontab -l`). **Sigue faltando la copia fuera del VPS**: un respaldo en el mismo disco que la base no protege contra perder el servidor.
 - ~~Reportes solo para admin~~ → recepción también tiene acceso desde esta sesión.
+- ~~Limpiar datos de prueba de producción~~ → hecho. `scripts/limpiar-datos-prueba.sh` (simulacro por defecto, respaldo + confirmación escrita antes del borrado real). Solo quedan las 2 reservas reales confirmadas por el dueño.
+- ~~Sin acceso SSH desde esta sesión~~ → resuelto. Llave propia instalada en el servidor (usuario `deploy`), confirmada funcionando.
 
 ---
 
@@ -240,3 +241,4 @@ El indicador central no es "reservas del mes" sino **noches**. Una estadía del 
 | Una petición da 403 desde un script | Cloudflare bloquea user-agents "de bot" | Usar un User-Agent de navegador normal |
 | Un reporte no cuadra con lo que se ve en "Reservas" | Reportes cuenta `checked_out` que Reservas ya oculta | Ver sección 10, "Reportes — prorrateo por noche". Si el sobrante son pruebas viejas: `./scripts/limpiar-datos-prueba.sh AAAA-MM-DD` (simulacro) |
 | El botón de frigobar parece no hacer nada para recepción | Ya corregido — antes el backend bloqueaba a `reception` en `/minibar/consumptions` sin que el frontend avisara | Confirmar que el deploy con el fix ya salió (commit de esta sesión) |
+| Se perdió el acceso SSH (máquina nueva, sin la llave) | Nadie configuró la llave en esta máquina | Ver "Acceso SSH" en sección 6. Generar una llave nueva y, **si el servidor solo acepta login por llave (lo normal)**, instalarla vía la consola web de Hetzner: Servers → servidor → Rescue → Reset Root Password → botón `>_` (consola) → login `root` con esa contraseña → agregar la llave pública a `/home/deploy/.ssh/authorized_keys`. **Ojo**: la consola web de Hetzner corrompe caracteres con Shift al pegar texto largo (`&`→`7`, `@`→`2`, `+`→`=`, `:`→`;`, `_`→`-` — pierde el Shift de símbolos, no de letras). Para escribir esos caracteres ahí, usar `vi`: `Ctrl+V` seguido del código ASCII en 3 dígitos (`_`=095, `@`=064, `+`=043) inserta el carácter exacto sin depender del teclado. |
