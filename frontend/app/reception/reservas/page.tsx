@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { useRealtime } from "@/lib/ws";
 import { useToast } from "@/lib/toast";
@@ -183,6 +184,15 @@ export default function ReservationsPage() {
               <span className="rounded-full bg-ink/60 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-parchment-dim">
                 {reservationStatusLabel[r.status]}
               </span>
+              {/* Nueva pestaña: recepción no pierde su lugar en "Reservas" si
+                  necesita reimprimir el voucher a mitad de turno. */}
+              <Link
+                href={`/reception/reservas/${r.id}/voucher`}
+                target="_blank"
+                className="rounded-lg border border-border-warm px-3 py-1.5 text-xs font-medium text-parchment-dim transition hover:border-brass/40 hover:text-brass"
+              >
+                Voucher
+              </Link>
               {(r.status === "pending" || r.status === "active") && (
                 <button
                   onClick={() => setEditing(r)}

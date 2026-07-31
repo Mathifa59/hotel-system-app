@@ -8,6 +8,13 @@ from app.models.enums import PaymentMethod, RatePlan, ReservationSource, Reserva
 from app.schemas.charge import ChargeOut
 
 
+class PaymentInfo(BaseModel):
+    method: PaymentMethod
+    amount_pen: Decimal
+    amount_usd: Decimal
+    paid_at: datetime
+
+
 class ReservationCreate(BaseModel):
     room_id: uuid.UUID
     guest_name: str
@@ -17,6 +24,10 @@ class ReservationCreate(BaseModel):
     check_out: datetime
     guests: int = Field(default=1, ge=1)
     rate_plan: RatePlan = RatePlan.professional
+    # Adelanto que el huésped paga al momento de reservar — opcional, no
+    # toda reserva se hace con adelanto. Distinto del pago final que se
+    # registra en el check-out (PaymentInfo, campo `payment` de ese endpoint).
+    deposit: PaymentInfo | None = None
 
 
 class ReservationUpdate(BaseModel):
@@ -29,13 +40,6 @@ class ReservationUpdate(BaseModel):
     guests: int | None = Field(default=None, ge=1)
     notes: str | None = None
     rate_plan: RatePlan | None = None
-
-
-class PaymentInfo(BaseModel):
-    method: PaymentMethod
-    amount_pen: Decimal
-    amount_usd: Decimal
-    paid_at: datetime
 
 
 class HistoricalReservationCreate(BaseModel):
@@ -82,6 +86,11 @@ class ReservationOut(BaseModel):
     payment_amount_pen: Decimal | None
     payment_amount_usd: Decimal | None
     paid_at: datetime | None
+    voucher_number: int | None
+    deposit_amount_pen: Decimal | None
+    deposit_amount_usd: Decimal | None
+    deposit_method: PaymentMethod | None
+    deposit_paid_at: datetime | None
 
 
 class ReservationFolio(BaseModel):
@@ -92,3 +101,36 @@ class ReservationFolio(BaseModel):
     charges: list[ChargeOut]
     total_pen: Decimal
     total_usd: Decimal
+
+
+class VoucherOut(BaseModel):
+    """Constancia de reserva — no es comprobante de pago. Trae todo ya
+    resuelto (número formateado, etiquetas, saldo) para que el frontend solo
+    imprima, sin repetir ninguna cuenta que ya hizo el backend."""
+
+    voucher_number: str  # "RES-0001"
+    issued_at: datetime
+
+    guest_name: str
+    guest_id_document: str | None
+
+    room_number: str | None  # None cuando la reserva sigue en lista de espera
+    room_type: RoomType
+    check_in: datetime
+    check_out: datetime
+    nights: int
+    guests: int
+
+    rate_plan: RatePlan
+    price_per_night_pen: Decimal
+    price_per_night_usd: Decimal
+    subtotal_pen: Decimal
+    subtotal_usd: Decimal
+
+    deposit_amount_pen: Decimal | None
+    deposit_amount_usd: Decimal | None
+    deposit_method: PaymentMethod | None
+    deposit_paid_at: datetime | None
+
+    balance_due_pen: Decimal
+    balance_due_usd: Decimal

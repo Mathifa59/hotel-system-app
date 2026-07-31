@@ -108,6 +108,11 @@ export interface Reservation {
   payment_amount_pen: string | null;
   payment_amount_usd: string | null;
   paid_at: string | null;
+  voucher_number: number | null;
+  deposit_amount_pen: string | null;
+  deposit_amount_usd: string | null;
+  deposit_method: PaymentMethod | null;
+  deposit_paid_at: string | null;
 }
 
 export interface ReservationFolio {
@@ -118,6 +123,30 @@ export interface ReservationFolio {
   charges: Charge[];
   total_pen: string;
   total_usd: string;
+}
+
+export interface Voucher {
+  voucher_number: string;
+  issued_at: string;
+  guest_name: string;
+  guest_id_document: string | null;
+  room_number: string | null;
+  room_type: RoomType;
+  check_in: string;
+  check_out: string;
+  nights: number;
+  guests: number;
+  rate_plan: RatePlan;
+  price_per_night_pen: string;
+  price_per_night_usd: string;
+  subtotal_pen: string;
+  subtotal_usd: string;
+  deposit_amount_pen: string | null;
+  deposit_amount_usd: string | null;
+  deposit_method: PaymentMethod | null;
+  deposit_paid_at: string | null;
+  balance_due_pen: string;
+  balance_due_usd: string;
 }
 
 export interface OccupancyReport {

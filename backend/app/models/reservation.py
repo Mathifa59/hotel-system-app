@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Numeric, SmallInteger, String, Text, text
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, Numeric, SmallInteger, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -67,3 +67,18 @@ class Reservation(Base):
     payment_amount_pen: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     payment_amount_usd: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Correlativo legible para el voucher (RES-0001...) — asignado la primera
+    # vez que alguien pide el voucher de esta reserva, no al crearla (ver
+    # migración fase13). Nulo hasta ese momento.
+    voucher_number: Mapped[int | None] = mapped_column(Integer, unique=True, nullable=True)
+
+    # Adelanto pagado al reservar — distinto del pago final de arriba
+    # (payment_*/paid_at), que se cobra al check-out. Opcional: no toda
+    # reserva se hace con adelanto.
+    deposit_amount_pen: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    deposit_amount_usd: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    deposit_method: Mapped[PaymentMethod | None] = mapped_column(
+        Enum(PaymentMethod, name="payment_method"), nullable=True
+    )
+    deposit_paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

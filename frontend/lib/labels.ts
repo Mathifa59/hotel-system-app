@@ -93,6 +93,24 @@ export const paymentMethodLabel: Record<PaymentMethod, string> = {
   transfer: "Transferencia",
 };
 
+// Solo para el voucher de reserva, que es bilingüe porque el hotel recibe
+// huéspedes extranjeros — el resto de la app es español puro, así que estas
+// dos tablas no se usan en ningún otro lado.
+export const roomTypeLabelEn: Record<RoomType, string> = {
+  individual: "Single",
+  doble: "Double",
+  doble_deluxe: "Double Deluxe",
+  doble_deluxe_twin: "Double Deluxe - 2 beds",
+  deluxe_extragrande: "Deluxe with extra-large bed",
+  triple: "Triple",
+};
+
+export const paymentMethodLabelEn: Record<PaymentMethod, string> = {
+  cash: "Cash",
+  card: "Card",
+  transfer: "Bank transfer",
+};
+
 export function formatMoney(amounts: { pen: string | number; usd: string | number }, currency: Currency): string {
   const value = currency === "PEN" ? amounts.pen : amounts.usd;
   const symbol = currency === "PEN" ? "S/" : "$";

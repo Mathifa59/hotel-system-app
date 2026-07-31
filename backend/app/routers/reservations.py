@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -30,6 +31,7 @@ from app.schemas.reservation import (
     ReservationFolio,
     ReservationOut,
     ReservationUpdate,
+    VoucherOut,
 )
 from app.services.activity_log import log_activity
 from app.services.capacity import ROOM_CAPACITY
@@ -106,7 +108,15 @@ def create_reservation(
             detail=f"El cuarto {room.number} ya tiene una reserva de {overlap.guest_name} que se cruza con esas fechas",
         )
 
-    reservation = Reservation(**data.model_dump(), created_by=current_user.id)
+    # `deposit` no es columna de Reservation (son 4 campos deposit_* aparte)
+    # — se excluye del dump y se asigna a mano, igual que hace el registro de
+    # estadía pasada con su `payment`.
+    reservation = Reservation(**data.model_dump(exclude={"deposit"}), created_by=current_user.id)
+    if data.deposit is not None:
+        reservation.deposit_amount_pen = data.deposit.amount_pen
+        reservation.deposit_amount_usd = data.deposit.amount_usd
+        reservation.deposit_method = data.deposit.method
+        reservation.deposit_paid_at = data.deposit.paid_at
     db.add(reservation)
     try:
         db.flush()
@@ -553,6 +563,71 @@ def reservation_folio(
         charges=charges,
         total_pen=total_pen,
         total_usd=total_usd,
+    )
+
+
+@router.get("/{reservation_id}/voucher", response_model=VoucherOut)
+def reservation_voucher(
+    reservation_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.admin, UserRole.reception)),
+):
+    """Constancia de reserva para el huésped — NO es un comprobante de pago
+    (boleta/factura), es solo la confirmación de que la reserva existe, el
+    adelanto recibido y el saldo pendiente al llegar."""
+    reservation = db.get(Reservation, reservation_id)
+    if reservation is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reserva no encontrada")
+
+    room = db.get(Room, reservation.room_id) if reservation.room_id else None
+    room_type = room.type if room is not None else reservation.requested_room_type
+    if room_type is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Esta reserva no tiene cuarto ni tipo de cuarto asignado — asígnalo antes de generar el voucher",
+        )
+
+    rate = db.get(RoomTypeRate, room_type)
+    nights = _nights(reservation)
+    pen_rate, usd_rate = _rate_for_plan(rate, reservation.rate_plan)
+    subtotal_pen = pen_rate * nights
+    subtotal_usd = usd_rate * nights
+
+    deposit_pen = reservation.deposit_amount_pen or Decimal("0")
+    deposit_usd = reservation.deposit_amount_usd or Decimal("0")
+
+    # El correlativo se asigna la PRIMERA vez que alguien pide el voucher —no
+    # al crear la reserva—, así que el número que ve la dueña sigue el orden
+    # real en que entregó vouchers, no el orden en que se tecleó cada
+    # reserva. nextval() es atómico en Postgres: dos pedidos simultáneos del
+    # mismo voucher nunca terminan con el mismo número.
+    if reservation.voucher_number is None:
+        reservation.voucher_number = db.execute(text("SELECT nextval('reservation_voucher_seq')")).scalar()
+        db.commit()
+        db.refresh(reservation)
+
+    return VoucherOut(
+        voucher_number=f"RES-{reservation.voucher_number:04d}",
+        issued_at=datetime.now(timezone.utc),
+        guest_name=reservation.guest_name,
+        guest_id_document=reservation.guest_id_document,
+        room_number=room.number if room is not None else None,
+        room_type=room_type,
+        check_in=reservation.check_in,
+        check_out=reservation.check_out,
+        nights=nights,
+        guests=reservation.guests,
+        rate_plan=reservation.rate_plan,
+        price_per_night_pen=pen_rate,
+        price_per_night_usd=usd_rate,
+        subtotal_pen=subtotal_pen,
+        subtotal_usd=subtotal_usd,
+        deposit_amount_pen=reservation.deposit_amount_pen,
+        deposit_amount_usd=reservation.deposit_amount_usd,
+        deposit_method=reservation.deposit_method,
+        deposit_paid_at=reservation.deposit_paid_at,
+        balance_due_pen=subtotal_pen - deposit_pen,
+        balance_due_usd=subtotal_usd - deposit_usd,
     )
 
 

@@ -99,6 +99,15 @@ export function CreateReservationModal({
   const [amountUsd, setAmountUsd] = useState("");
   const [paymentTouched, setPaymentTouched] = useState(false);
 
+  // Solo para modo "nueva": el adelanto que el huésped paga al reservar —
+  // sin esto no había forma de que el voucher mostrara cuánto se recibió ni
+  // el saldo pendiente. Empieza desmarcado porque no toda reserva se hace
+  // con adelanto.
+  const [registerDeposit, setRegisterDeposit] = useState(false);
+  const [depositMethod, setDepositMethod] = useState<PaymentMethod>("cash");
+  const [depositAmountPen, setDepositAmountPen] = useState("");
+  const [depositAmountUsd, setDepositAmountUsd] = useState("");
+
   // Tarifas por tipo de cuarto — permiten mostrar el total estimado mientras
   // se llena el formulario y prellenar el monto del pago en modo "pasada",
   // en vez de obligar a recepción a sacar la cuenta a mano.
@@ -144,6 +153,9 @@ export function CreateReservationModal({
       if (registerPayment && (!amountPen || !amountUsd))
         return "Completa el monto del pago o desmarca “Registrar el pago”.";
     }
+    if (mode === "nueva" && registerDeposit && (!depositAmountPen || !depositAmountUsd)) {
+      return "Completa el monto del adelanto o desmarca “Registrar adelanto”.";
+    }
     return null;
   }
 
@@ -185,7 +197,26 @@ export function CreateReservationModal({
               },
               token
             )
-          : await api.post<Reservation>("/reservations", base, token);
+          : await api.post<Reservation>(
+              "/reservations",
+              {
+                ...base,
+                deposit:
+                  registerDeposit && depositAmountPen && depositAmountUsd
+                    ? {
+                        method: depositMethod,
+                        amount_pen: depositAmountPen,
+                        amount_usd: depositAmountUsd,
+                        // El adelanto se cobra en el momento de crear la
+                        // reserva, así que "ahora" es la fecha correcta —
+                        // a diferencia del pago de una estadía pasada, que
+                        // usa la fecha de salida.
+                        paid_at: new Date().toISOString(),
+                      }
+                    : undefined,
+              },
+              token
+            );
 
       onCreated(reservation);
       toast.success(
@@ -376,6 +407,68 @@ export function CreateReservationModal({
               <p className="mt-2 text-[11px] text-parchment-dim">
                 Se registra con la fecha de salida. Si no recuerdas el monto exacto, desmarca la casilla — la estadía
                 igual queda en el historial y en la ocupación.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {mode === "nueva" && (
+        <div className="mt-4 rounded-xl border border-border-warm/60 p-3.5">
+          <label className="flex cursor-pointer items-center gap-2.5">
+            <input
+              type="checkbox"
+              checked={registerDeposit}
+              onChange={(e) => setRegisterDeposit(e.target.checked)}
+              className="h-4 w-4 accent-brass"
+            />
+            <span className="text-sm font-medium text-parchment">Registrar adelanto pagado ahora</span>
+          </label>
+
+          {registerDeposit && (
+            <div className="mt-3.5">
+              <label className={LABEL_CLASS}>Método de pago</label>
+              <div className="mb-3 grid grid-cols-3 gap-2">
+                {PAYMENT_METHODS.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setDepositMethod(m)}
+                    className={`rounded-lg border px-2 py-2 text-sm font-medium transition ${
+                      depositMethod === m
+                        ? "border-brass/50 bg-brass/15 text-brass"
+                        : "border-border-warm text-parchment-dim hover:border-brass/40 hover:text-parchment"
+                    }`}
+                  >
+                    {paymentMethodLabel[m]}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className={LABEL_CLASS}>Monto S/</label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={depositAmountPen}
+                    onChange={(e) => setDepositAmountPen(e.target.value)}
+                    className={FIELD_CLASS}
+                  />
+                </div>
+                <div>
+                  <label className={LABEL_CLASS}>Monto $</label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={depositAmountUsd}
+                    onChange={(e) => setDepositAmountUsd(e.target.value)}
+                    className={FIELD_CLASS}
+                  />
+                </div>
+              </div>
+              <p className="mt-2 text-[11px] text-parchment-dim">
+                Se muestra en el voucher de la reserva junto con el saldo pendiente al llegar.
               </p>
             </div>
           )}
