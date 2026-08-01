@@ -15,6 +15,7 @@ import { EditChargeModal } from "@/components/EditChargeModal";
 const NAV = [
   { href: "/reception", label: "Cuartos" },
   { href: "/reception/reservas", label: "Reservas" },
+  { href: "/reception/tarifas", label: "Tarifas" },
   { href: "/reception/cargos", label: "Cargos" },
   { href: "/reception/reportes", label: "Reportes" },
 ];

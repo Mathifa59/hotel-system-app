@@ -36,7 +36,7 @@ def update_rate(
     room_type: RoomType,
     data: RoomTypeRateUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.admin)),
+    current_user: User = Depends(require_role(UserRole.admin, UserRole.reception)),
 ):
     rate = db.get(RoomTypeRate, room_type)
     if rate is None:
@@ -44,12 +44,23 @@ def update_rate(
 
     rate.price_pen = data.price_pen
     rate.price_usd = data.price_usd
+    # Antes de esto la promocional nunca se guardaba — el schema la aceptaba
+    # pero el handler solo tocaba la profesional, así que cualquier intento
+    # de cargarla se perdía en silencio, sin error.
+    rate.price_pen_promo = data.price_pen_promo
+    rate.price_usd_promo = data.price_usd_promo
     log_activity(
         db,
         user_id=current_user.id,
         action="room_type_rate.updated",
         entity="room_type_rates",
-        meta={"type": room_type.value, "price_pen": data.price_pen, "price_usd": data.price_usd},
+        meta={
+            "type": room_type.value,
+            "price_pen": data.price_pen,
+            "price_usd": data.price_usd,
+            "price_pen_promo": data.price_pen_promo,
+            "price_usd_promo": data.price_usd_promo,
+        },
     )
     db.commit()
     db.refresh(rate)

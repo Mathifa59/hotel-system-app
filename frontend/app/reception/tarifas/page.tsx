@@ -6,13 +6,11 @@ import { DashboardShell } from "@/components/DashboardShell";
 import { RatesEditor } from "@/components/RatesEditor";
 
 const NAV = [
-  { href: "/admin", label: "Cuartos" },
-  { href: "/admin/tarifas", label: "Tarifas" },
-  { href: "/admin/frigobar", label: "Frigobar" },
-  { href: "/admin/cargos", label: "Cargos" },
-  { href: "/admin/reportes", label: "Reportes" },
-  { href: "/admin/solicitudes", label: "Solicitudes" },
-  { href: "/admin/usuarios", label: "Usuarios" },
+  { href: "/reception", label: "Cuartos" },
+  { href: "/reception/reservas", label: "Reservas" },
+  { href: "/reception/tarifas", label: "Tarifas" },
+  { href: "/reception/cargos", label: "Cargos" },
+  { href: "/reception/reportes", label: "Reportes" },
 ];
 
 export default function TarifasPage() {
@@ -20,7 +18,7 @@ export default function TarifasPage() {
   const connected = useRealtime(token, () => {});
 
   return (
-    <DashboardShell title="Admin" nav={NAV} connected={connected}>
+    <DashboardShell title="Recepción" nav={NAV} connected={connected}>
       <RatesEditor />
     </DashboardShell>
   );

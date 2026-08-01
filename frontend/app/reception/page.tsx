@@ -14,6 +14,7 @@ import { CreateReservationModal } from "@/components/CreateReservationModal";
 const NAV = [
   { href: "/reception", label: "Cuartos" },
   { href: "/reception/reservas", label: "Reservas" },
+  { href: "/reception/tarifas", label: "Tarifas" },
   { href: "/reception/cargos", label: "Cargos" },
   { href: "/reception/reportes", label: "Reportes" },
 ];
