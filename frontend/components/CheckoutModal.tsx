@@ -148,7 +148,7 @@ export function CheckoutModal({
           <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">
             Método de pago
           </label>
-          <div className="mb-3 grid grid-cols-3 gap-2">
+          <div className="mb-3 grid grid-cols-2 gap-2">
             {PAYMENT_METHODS.map((m) => (
               <button
                 key={m}

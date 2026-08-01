@@ -40,6 +40,9 @@ class ReservationUpdate(BaseModel):
     guests: int | None = Field(default=None, ge=1)
     notes: str | None = None
     rate_plan: RatePlan | None = None
+    # Ausente = no tocar el adelanto. Un objeto = registrarlo/corregirlo.
+    # `null` explícito = borrarlo (el huésped nunca pagó, o se registró mal).
+    deposit: PaymentInfo | None = None
 
 
 class HistoricalReservationCreate(BaseModel):

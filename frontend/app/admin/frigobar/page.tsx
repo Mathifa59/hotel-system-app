@@ -12,6 +12,7 @@ import { DashboardShell } from "@/components/DashboardShell";
 
 const NAV = [
   { href: "/admin", label: "Cuartos" },
+  { href: "/admin/tarifas", label: "Tarifas" },
   { href: "/admin/frigobar", label: "Frigobar" },
   { href: "/admin/cargos", label: "Cargos" },
   { href: "/admin/reportes", label: "Reportes" },

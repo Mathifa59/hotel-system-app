@@ -6,8 +6,8 @@ import { useAuth } from "@/lib/auth";
 import { useRealtime } from "@/lib/ws";
 import { useToast } from "@/lib/toast";
 import { api, ApiError } from "@/lib/api";
-import type { RatePlan, Reservation, RealtimeEvent, Room, RoomHistory } from "@/lib/types";
-import { formatDateTime, ratePlanLabel, reservationStatusLabel, roomTypeLabel } from "@/lib/labels";
+import type { PaymentMethod, RatePlan, Reservation, RealtimeEvent, Room, RoomHistory } from "@/lib/types";
+import { formatDateTime, paymentMethodLabel, ratePlanLabel, reservationStatusLabel, roomTypeLabel } from "@/lib/labels";
 import { DashboardShell } from "@/components/DashboardShell";
 import { DateTimeField } from "@/components/DateTimeField";
 import { Modal } from "@/components/Modal";
@@ -174,6 +174,14 @@ export default function ReservationsPage() {
               <p className="text-[11px] text-parchment-dim">
                 {formatDateTime(r.check_in)} → {formatDateTime(r.check_out)}
               </p>
+              {/* Antes no había ninguna señal acá de que ya se registró un
+                  adelanto — solo se veía abriendo el voucher. */}
+              {r.deposit_amount_pen !== null && (
+                <p className="text-[11px] text-brass">
+                  Adelanto: S/ {r.deposit_amount_pen} · $ {r.deposit_amount_usd}
+                  {r.deposit_method && ` (${paymentMethodLabel[r.deposit_method]})`}
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-3">
               {dateSignal(r) && (
@@ -316,6 +324,8 @@ function toLocalInput(iso: string): string {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 }
 
+const DEPOSIT_METHODS: PaymentMethod[] = ["cash", "card", "transfer", "yape"];
+
 function EditReservationModal({
   token,
   reservation,
@@ -340,11 +350,23 @@ function EditReservationModal({
   const [submitting, setSubmitting] = useState(false);
   const toast = useToast();
 
+  // El adelanto solo se podía registrar al crear la reserva — si el huésped
+  // pagó después (lo normal: reserva primero, transferencia unos minutos u
+  // horas más tarde), no había forma de anotarlo. Precargado si ya existía,
+  // para poder corregirlo sin perder el dato.
+  const [registerDeposit, setRegisterDeposit] = useState(reservation.deposit_amount_pen !== null);
+  const [depositMethod, setDepositMethod] = useState<PaymentMethod>(reservation.deposit_method ?? "cash");
+  const [depositAmountPen, setDepositAmountPen] = useState(reservation.deposit_amount_pen ?? "");
+  const [depositAmountUsd, setDepositAmountUsd] = useState(reservation.deposit_amount_usd ?? "");
+
   async function submit() {
     if (!guestName.trim()) return toast.error("Escribe el nombre del huésped.");
     if (!checkIn) return toast.error("Falta la fecha de check-in.");
     if (!checkOut) return toast.error("Falta la fecha de check-out.");
     if (new Date(checkOut) <= new Date(checkIn)) return toast.error("El check-out debe ser posterior al check-in.");
+    if (registerDeposit && (!depositAmountPen || !depositAmountUsd)) {
+      return toast.error("Completa el monto del adelanto o desmarca “Registrar adelanto”.");
+    }
 
     setSubmitting(true);
     try {
@@ -359,6 +381,17 @@ function EditReservationModal({
           rate_plan: ratePlan,
           check_in: new Date(checkIn).toISOString(),
           check_out: new Date(checkOut).toISOString(),
+          deposit: registerDeposit
+            ? {
+                method: depositMethod,
+                amount_pen: depositAmountPen,
+                amount_usd: depositAmountUsd,
+                // Si ya tenía adelanto, se respeta la fecha original — no es
+                // que se haya vuelto a pagar solo porque se corrigió el
+                // monto. Si es la primera vez que se marca, es "ahora".
+                paid_at: reservation.deposit_paid_at ?? new Date().toISOString(),
+              }
+            : null,
         },
         token
       );
@@ -441,6 +474,69 @@ function EditReservationModal({
           <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">Check-out</label>
           <DateTimeField value={checkOut} onChange={setCheckOut} presetTimes={CHECKOUT_TIMES} />
         </div>
+      </div>
+
+      <div className="mb-4 rounded-xl border border-border-warm/60 p-3.5">
+        <label className="flex cursor-pointer items-center gap-2.5">
+          <input
+            type="checkbox"
+            checked={registerDeposit}
+            onChange={(e) => setRegisterDeposit(e.target.checked)}
+            className="h-4 w-4 accent-brass"
+          />
+          <span className="text-sm font-medium text-parchment">Adelanto pagado</span>
+        </label>
+
+        {registerDeposit && (
+          <div className="mt-3.5">
+            <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">
+              Método de pago
+            </label>
+            <div className="mb-3 grid grid-cols-2 gap-2">
+              {DEPOSIT_METHODS.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setDepositMethod(m)}
+                  className={`rounded-lg border px-2 py-2 text-sm font-medium transition ${
+                    depositMethod === m
+                      ? "border-brass/50 bg-brass/15 text-brass"
+                      : "border-border-warm text-parchment-dim hover:border-brass/40 hover:text-parchment"
+                  }`}
+                >
+                  {paymentMethodLabel[m]}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">
+                  Monto S/
+                </label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={depositAmountPen}
+                  onChange={(e) => setDepositAmountPen(e.target.value)}
+                  className="w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">
+                  Monto $
+                </label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={depositAmountUsd}
+                  onChange={(e) => setDepositAmountUsd(e.target.value)}
+                  className="w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment outline-none focus:border-brass focus:ring-2 focus:ring-brass/30"
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <button

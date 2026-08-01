@@ -8,7 +8,7 @@ export type ChargeType = "minibar" | "damage" | "extra_cleaning" | "other" | "ro
 export type ChargeStatus = "pending" | "approved" | "billed" | "cancelled";
 export type ReservationStatus = "pending" | "active" | "checked_out" | "cancelled";
 export type ReservationSource = "staff" | "website";
-export type PaymentMethod = "cash" | "card" | "transfer";
+export type PaymentMethod = "cash" | "card" | "transfer" | "yape";
 
 export interface User {
   id: string;

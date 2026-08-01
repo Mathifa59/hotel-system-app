@@ -299,7 +299,13 @@ def update_reservation(
         )
 
     changes = data.model_dump(exclude_unset=True)
-    if not changes:
+    # `deposit` no es una columna de Reservation (son 4 campos deposit_*
+    # aparte) — se saca del dict genérico ANTES del chequeo de "no hay nada
+    # que cambiar", porque alguien puede llamar a este endpoint solo para
+    # corregir el adelanto sin tocar ningún otro campo.
+    deposit_provided = "deposit" in changes
+    deposit_data = changes.pop("deposit", None)
+    if not changes and not deposit_provided:
         return reservation
 
     # Las fechas que llegan sin zona horaria se asumen en UTC, para poder
@@ -369,6 +375,18 @@ def update_reservation(
 
     for field, value in changes.items():
         setattr(reservation, field, value)
+
+    if deposit_provided:
+        if deposit_data is not None:
+            reservation.deposit_amount_pen = deposit_data["amount_pen"]
+            reservation.deposit_amount_usd = deposit_data["amount_usd"]
+            reservation.deposit_method = deposit_data["method"]
+            reservation.deposit_paid_at = deposit_data["paid_at"]
+        else:
+            reservation.deposit_amount_pen = None
+            reservation.deposit_amount_usd = None
+            reservation.deposit_method = None
+            reservation.deposit_paid_at = None
 
     log_activity(
         db,

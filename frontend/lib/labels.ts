@@ -91,6 +91,7 @@ export const paymentMethodLabel: Record<PaymentMethod, string> = {
   cash: "Efectivo",
   card: "Tarjeta",
   transfer: "Transferencia",
+  yape: "Yape",
 };
 
 // Solo para el voucher de reserva, que es bilingüe porque el hotel recibe
@@ -109,6 +110,7 @@ export const paymentMethodLabelEn: Record<PaymentMethod, string> = {
   cash: "Cash",
   card: "Card",
   transfer: "Bank transfer",
+  yape: "Yape",
 };
 
 export function formatMoney(amounts: { pen: string | number; usd: string | number }, currency: Currency): string {

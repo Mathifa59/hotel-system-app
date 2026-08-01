@@ -71,6 +71,7 @@ class PaymentMethod(str, enum.Enum):
     cash = "cash"
     card = "card"
     transfer = "transfer"
+    yape = "yape"
 
 
 class RatePlan(str, enum.Enum):

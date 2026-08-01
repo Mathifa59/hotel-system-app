@@ -16,7 +16,7 @@ export const CHECKOUT_TIMES = [
   { label: "3:00 pm", time: "15:00" },
 ];
 
-const PAYMENT_METHODS: PaymentMethod[] = ["cash", "card", "transfer"];
+const PAYMENT_METHODS: PaymentMethod[] = ["cash", "card", "transfer", "yape"];
 
 const FIELD_CLASS =
   "w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment placeholder:text-parchment-dim/50 outline-none focus:border-brass focus:ring-2 focus:ring-brass/30";
@@ -359,7 +359,7 @@ export function CreateReservationModal({
           {registerPayment && (
             <div className="mt-3.5">
               <label className={LABEL_CLASS}>Método de pago</label>
-              <div className="mb-3 grid grid-cols-3 gap-2">
+              <div className="mb-3 grid grid-cols-2 gap-2">
                 {PAYMENT_METHODS.map((m) => (
                   <button
                     key={m}
@@ -428,7 +428,7 @@ export function CreateReservationModal({
           {registerDeposit && (
             <div className="mt-3.5">
               <label className={LABEL_CLASS}>Método de pago</label>
-              <div className="mb-3 grid grid-cols-3 gap-2">
+              <div className="mb-3 grid grid-cols-2 gap-2">
                 {PAYMENT_METHODS.map((m) => (
                   <button
                     key={m}
