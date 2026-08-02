@@ -424,8 +424,10 @@ def update_reservation(
         if room_charge is not None:
             nights = _nights(reservation)
             pen_rate, usd_rate = _nightly_rate(reservation, new_room.type, db)
+            plan_label = "Promocional" if reservation.rate_plan == RatePlan.promotional else "Profesional"
             room_charge.amount_pen = pen_rate * nights
             room_charge.amount_usd = usd_rate * nights
+            room_charge.description = f"Alojamiento — {nights} noche(s) ({plan_label})"
 
     log_activity(
         db,
