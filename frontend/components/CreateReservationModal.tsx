@@ -18,6 +18,20 @@ export const CHECKOUT_TIMES = [
 
 const PAYMENT_METHODS: PaymentMethod[] = ["cash", "card", "transfer", "yape"];
 
+// Ícono "i" con tooltip nativo — usado junto al precio personalizado para
+// avisar de entrada (antes de escribir nada) que ese precio es solo para
+// esta reserva, sin tener que esperar a la nota que aparece después.
+export function InfoHint({ text }: { text: string }) {
+  return (
+    <span title={text} tabIndex={0} className="cursor-help text-parchment-dim/60 transition hover:text-brass">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="inline-block align-[-2px]">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+        <path d="M12 16v-5M12 8h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    </span>
+  );
+}
+
 const FIELD_CLASS =
   "w-full rounded-lg border border-border-warm bg-ink/60 px-3 py-2 text-sm text-parchment placeholder:text-parchment-dim/50 outline-none focus:border-brass focus:ring-2 focus:ring-brass/30";
 const LABEL_CLASS = "mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim";
@@ -343,7 +357,10 @@ export function CreateReservationModal({
         </div>
 
         <div>
-          <label className={LABEL_CLASS}>Precio/noche S/ (opcional)</label>
+          <label className={`${LABEL_CLASS} flex items-center gap-1.5`}>
+            Precio/noche S/ (opcional)
+            <InfoHint text="Si pones un precio acá, solo afecta a esta reserva — la tarifa general del tipo de cuarto no cambia." />
+          </label>
           <input
             type="number"
             inputMode="decimal"

@@ -7,7 +7,7 @@ import type { PaymentMethod, RatePlan, Reservation, Room } from "@/lib/types";
 import { paymentMethodLabel, roomTypeLabel } from "@/lib/labels";
 import { DateTimeField } from "@/components/DateTimeField";
 import { Modal } from "@/components/Modal";
-import { CHECKOUT_TIMES, RatePlanToggle } from "@/components/CreateReservationModal";
+import { CHECKOUT_TIMES, InfoHint, RatePlanToggle } from "@/components/CreateReservationModal";
 
 const DEPOSIT_METHODS: PaymentMethod[] = ["cash", "card", "transfer", "yape"];
 
@@ -180,8 +180,9 @@ export function EditReservationModal({
         <RatePlanToggle value={ratePlan} onChange={setRatePlan} />
       </div>
 
-      <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-parchment-dim">
+      <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-parchment-dim">
         Precio por noche personalizado (opcional)
+        <InfoHint text="Si pones un precio acá, solo afecta a esta reserva — la tarifa general del tipo de cuarto no cambia." />
       </label>
       <div className="mb-1 grid grid-cols-2 gap-2">
         <input
