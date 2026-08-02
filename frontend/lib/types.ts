@@ -99,6 +99,8 @@ export interface Reservation {
   check_out: string;
   guests: number;
   rate_plan: RatePlan;
+  custom_rate_pen: string | null;
+  custom_rate_usd: string | null;
   status: ReservationStatus;
   source: ReservationSource;
   confirmed: boolean;

@@ -54,6 +54,14 @@ class Reservation(Base):
         default=RatePlan.professional,
         server_default=RatePlan.professional.value,
     )
+    # Precio por noche fijado a mano para ESTA reserva — cuando está presente
+    # (los dos, PEN y USD), gana sobre RoomTypeRate/rate_plan en todo cálculo
+    # de alojamiento (creación, check-out, folio, voucher). Antes, la única
+    # forma de darle un precio distinto a una reserva era cambiar la tarifa
+    # del tipo de cuarto entero, reservar, y volver a cambiarla — afectando a
+    # cualquier otra reserva de ese tipo mientras tanto.
+    custom_rate_pen: Mapped[Decimal | None] = mapped_column(Numeric(8, 2), nullable=True)
+    custom_rate_usd: Mapped[Decimal | None] = mapped_column(Numeric(8, 2), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

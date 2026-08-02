@@ -24,6 +24,12 @@ class ReservationCreate(BaseModel):
     check_out: datetime
     guests: int = Field(default=1, ge=1)
     rate_plan: RatePlan = RatePlan.professional
+    # Precio por noche fijado a mano para esta reserva — si se envían los
+    # dos (PEN y USD), gana sobre la tarifa del tipo de cuarto. Evita tener
+    # que cambiar la tarifa general solo para dar un precio distinto a una
+    # reserva puntual.
+    custom_rate_pen: Decimal | None = None
+    custom_rate_usd: Decimal | None = None
     # Adelanto que el huésped paga al momento de reservar — opcional, no
     # toda reserva se hace con adelanto. Distinto del pago final que se
     # registra en el check-out (PaymentInfo, campo `payment` de ese endpoint).
@@ -40,6 +46,8 @@ class ReservationUpdate(BaseModel):
     guests: int | None = Field(default=None, ge=1)
     notes: str | None = None
     rate_plan: RatePlan | None = None
+    custom_rate_pen: Decimal | None = None
+    custom_rate_usd: Decimal | None = None
     # Ausente = no tocar el adelanto. Un objeto = registrarlo/corregirlo.
     # `null` explícito = borrarlo (el huésped nunca pagó, o se registró mal).
     deposit: PaymentInfo | None = None
@@ -60,9 +68,15 @@ class HistoricalReservationCreate(BaseModel):
     check_out: datetime
     guests: int = Field(default=1, ge=1)
     rate_plan: RatePlan = RatePlan.professional
+    custom_rate_pen: Decimal | None = None
+    custom_rate_usd: Decimal | None = None
     # Opcional: si no se sabe cómo/cuánto pagó (histórico viejo), la estadía
     # igual queda registrada para ocupación e ingresos por tarifa.
     payment: PaymentInfo | None = None
+    # Adelanto que se pagó al reservar, antes de que la estadía ocurriera —
+    # distinto de `payment` (el pago final, al irse). Antes de esto una
+    # estadía pasada solo podía registrar el pago final, nunca un adelanto.
+    deposit: PaymentInfo | None = None
 
 
 class ReservationOut(BaseModel):
@@ -80,6 +94,8 @@ class ReservationOut(BaseModel):
     check_out: datetime
     guests: int
     rate_plan: RatePlan
+    custom_rate_pen: Decimal | None
+    custom_rate_usd: Decimal | None
     status: ReservationStatus
     source: ReservationSource
     confirmed: bool

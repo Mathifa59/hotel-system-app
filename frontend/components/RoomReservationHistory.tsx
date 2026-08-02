@@ -9,11 +9,20 @@ import type { Reservation } from "@/lib/types";
 // que es lo que realmente se necesita consultar ("¿quién se ha alojado
 // aquí?"). Se usa tanto en el detalle del cuarto como en la pestaña de
 // Reservas.
-export function RoomReservationHistory({ reservations }: { reservations: Reservation[] }) {
+export function RoomReservationHistory({
+  reservations,
+  onEdit,
+}: {
+  reservations: Reservation[];
+  // Solo lo pasa reservas/page.tsx (ver RoomHistoryModal ahí) — sin esto el
+  // botón "Editar" no aparece, así que en admin/limpieza (donde este
+  // componente también se usa vía RoomDetailModal) simplemente no se ofrece.
+  onEdit?: (r: Reservation) => void;
+}) {
   // Este componente también lo usan admin y limpieza (RoomDetailModal se
-  // reutiliza en las tres vistas) — pero la página del voucher vive bajo
-  // /reception y solo esa vista la deja pasar. Mostrar el botón fuera de ahí
-  // sería un enlace que redirige a otro rol en vez de al voucher.
+  // reutiliza en las tres vistas) — pero la página del voucher y la edición
+  // de reservas viven bajo /reception y solo esa vista las deja pasar.
+  // Mostrar los botones fuera de ahí sería un enlace que redirige a otro rol.
   const { user } = useAuth();
   const canSeeVoucher = user?.role === "reception";
 
@@ -42,6 +51,18 @@ export function RoomReservationHistory({ reservations }: { reservations: Reserva
                 >
                   Voucher
                 </Link>
+              )}
+              {/* Cancelled nunca ocupó el cuarto — no hay nada ahí que
+                  corregir. pending/active ya se editan desde la lista
+                  principal de Reservas; esto es lo que le faltaba a
+                  checked_out. */}
+              {canSeeVoucher && onEdit && r.status !== "cancelled" && (
+                <button
+                  onClick={() => onEdit(r)}
+                  className="rounded-full border border-border-warm px-2 py-0.5 text-[10px] font-medium text-parchment-dim transition hover:border-brass/40 hover:text-brass"
+                >
+                  Editar
+                </button>
               )}
             </div>
           </div>

@@ -19,6 +19,7 @@ from app.models.enums import (
     ReservationSource,
     ReservationStatus,
     RoomStatus,
+    RoomType,
     UserRole,
 )
 from app.models.reservation import Reservation
@@ -44,6 +45,19 @@ router = APIRouter(prefix="/reservations", tags=["reservations"])
 
 def _nights(reservation: Reservation) -> int:
     return max((reservation.check_out.date() - reservation.check_in.date()).days, 1)
+
+
+def _nightly_rate(reservation: Reservation, room_type: RoomType, db: Session) -> tuple[Decimal, Decimal]:
+    """Precio por noche que le corresponde a ESTA reserva: el que se le fijó
+    a mano (custom_rate_pen/usd), o si no tiene, el vigente para su tipo de
+    cuarto y plan. Punto único de esta decisión — los 4 lugares que cobran
+    alojamiento (alta, check-out, folio, voucher) pasan por acá, así que
+    fijar un precio propio para una reserva no requiere tocar la tarifa
+    general ni recordar actualizarla en cuatro sitios."""
+    if reservation.custom_rate_pen is not None and reservation.custom_rate_usd is not None:
+        return Decimal(reservation.custom_rate_pen), Decimal(reservation.custom_rate_usd)
+    rate = db.get(RoomTypeRate, room_type)
+    return _rate_for_plan(rate, reservation.rate_plan)
 
 
 def _rate_for_plan(rate: RoomTypeRate, plan: RatePlan) -> tuple[Decimal, Decimal]:
@@ -215,6 +229,8 @@ def create_historical_reservation(
         check_out=check_out,
         guests=data.guests,
         rate_plan=data.rate_plan,
+        custom_rate_pen=data.custom_rate_pen,
+        custom_rate_usd=data.custom_rate_usd,
         status=ReservationStatus.checked_out,
         source=ReservationSource.staff,
         confirmed=True,
@@ -225,12 +241,16 @@ def create_historical_reservation(
         reservation.payment_amount_pen = data.payment.amount_pen
         reservation.payment_amount_usd = data.payment.amount_usd
         reservation.paid_at = data.payment.paid_at
+    if data.deposit is not None:
+        reservation.deposit_amount_pen = data.deposit.amount_pen
+        reservation.deposit_amount_usd = data.deposit.amount_usd
+        reservation.deposit_method = data.deposit.method
+        reservation.deposit_paid_at = data.deposit.paid_at
     db.add(reservation)
     db.flush()
 
-    rate = db.get(RoomTypeRate, room.type)
     nights = _nights(reservation)
-    pen_rate, usd_rate = _rate_for_plan(rate, reservation.rate_plan)
+    pen_rate, usd_rate = _nightly_rate(reservation, room.type, db)
     plan_label = "Promocional" if reservation.rate_plan == RatePlan.promotional else "Profesional"
 
     db.add(
@@ -293,10 +313,12 @@ def update_reservation(
     reservation = db.get(Reservation, reservation_id)
     if reservation is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reserva no encontrada")
-    if reservation.status not in (ReservationStatus.pending, ReservationStatus.active):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Solo se pueden editar reservas pendientes o activas"
-        )
+    # Cancelada = nunca ocupó el cuarto, no hay nada que corregir. Todo lo
+    # demás —incluida checked_out— se puede editar: una estadía pasada o ya
+    # cerrada puede tener un dato mal (nombre, fechas, adelanto, precio) que
+    # hay que poder arreglar sin reabrir toda la reserva.
+    if reservation.status == ReservationStatus.cancelled:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="No se puede editar una reserva cancelada")
 
     changes = data.model_dump(exclude_unset=True)
     # `deposit` no es una columna de Reservation (son 4 campos deposit_*
@@ -387,6 +409,23 @@ def update_reservation(
             reservation.deposit_amount_usd = None
             reservation.deposit_method = None
             reservation.deposit_paid_at = None
+
+    # Editar una reserva YA cerrada puede tocar justo lo que decidió su
+    # cargo de alojamiento (fechas, plan, precio propio) — sin esto, el
+    # voucher/folio mostrarían el monto corregido pero el cargo real (el que
+    # cuentan los reportes) se quedaría con el valor viejo, dos números
+    # distintos para la misma estadía.
+    if reservation.status == ReservationStatus.checked_out and new_room is not None:
+        room_charge = (
+            db.query(Charge)
+            .filter(Charge.reservation_id == reservation.id, Charge.type == ChargeType.room)
+            .first()
+        )
+        if room_charge is not None:
+            nights = _nights(reservation)
+            pen_rate, usd_rate = _nightly_rate(reservation, new_room.type, db)
+            room_charge.amount_pen = pen_rate * nights
+            room_charge.amount_usd = usd_rate * nights
 
     log_activity(
         db,
@@ -550,9 +589,8 @@ def reservation_folio(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reserva no encontrada")
 
     room = db.get(Room, reservation.room_id)
-    rate = db.get(RoomTypeRate, room.type)
     nights = _nights(reservation)
-    pen_rate, usd_rate = _rate_for_plan(rate, reservation.rate_plan)
+    pen_rate, usd_rate = _nightly_rate(reservation, room.type, db)
     room_charge_pen = pen_rate * nights
     room_charge_usd = usd_rate * nights
 
@@ -605,9 +643,8 @@ def reservation_voucher(
             detail="Esta reserva no tiene cuarto ni tipo de cuarto asignado — asígnalo antes de generar el voucher",
         )
 
-    rate = db.get(RoomTypeRate, room_type)
     nights = _nights(reservation)
-    pen_rate, usd_rate = _rate_for_plan(rate, reservation.rate_plan)
+    pen_rate, usd_rate = _nightly_rate(reservation, room_type, db)
     subtotal_pen = pen_rate * nights
     subtotal_usd = usd_rate * nights
 
@@ -669,9 +706,8 @@ def checkout(
         reservation.paid_at = payment.paid_at
 
     room = db.get(Room, reservation.room_id)
-    rate = db.get(RoomTypeRate, room.type)
     nights = _nights(reservation)
-    pen_rate, usd_rate = _rate_for_plan(rate, reservation.rate_plan)
+    pen_rate, usd_rate = _nightly_rate(reservation, room.type, db)
     plan_label = "Promocional" if reservation.rate_plan == RatePlan.promotional else "Profesional"
 
     room_charge = Charge(

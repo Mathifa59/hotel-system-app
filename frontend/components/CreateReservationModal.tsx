@@ -92,6 +92,13 @@ export function CreateReservationModal({
   const [checkOut, setCheckOut] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Precio por noche fijado a mano para ESTA reserva — antes, darle un
+  // precio distinto a una reserva puntual significaba ir a Tarifas, cambiar
+  // el precio del tipo de cuarto, crear la reserva, y volver a cambiarlo
+  // (afectando a cualquier otra reserva de ese tipo mientras tanto).
+  const [customRatePen, setCustomRatePen] = useState("");
+  const [customRateUsd, setCustomRateUsd] = useState("");
+
   // Solo para modo "pasada": el pago que ya se cobró en su momento.
   const [registerPayment, setRegisterPayment] = useState(true);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
@@ -124,10 +131,17 @@ export function CreateReservationModal({
   const nights = countNights(checkIn, checkOut);
   const selectedRoom = rooms.find((r) => r.id === roomId);
   const rate = selectedRoom ? rates.find((r) => r.type === selectedRoom.type) : undefined;
-  const perNightPen =
-    rate && ratePlan === "promotional" && rate.price_pen_promo !== null ? rate.price_pen_promo : rate?.price_pen;
-  const perNightUsd =
-    rate && ratePlan === "promotional" && rate.price_usd_promo !== null ? rate.price_usd_promo : rate?.price_usd;
+  const hasCustomRate = customRatePen !== "" && customRateUsd !== "";
+  const perNightPen = hasCustomRate
+    ? Number(customRatePen)
+    : rate && ratePlan === "promotional" && rate.price_pen_promo !== null
+      ? rate.price_pen_promo
+      : rate?.price_pen;
+  const perNightUsd = hasCustomRate
+    ? Number(customRateUsd)
+    : rate && ratePlan === "promotional" && rate.price_usd_promo !== null
+      ? rate.price_usd_promo
+      : rate?.price_usd;
   const estimatePen = perNightPen !== undefined && nights > 0 ? perNightPen * nights : null;
   const estimateUsd = perNightUsd !== undefined && nights > 0 ? perNightUsd * nights : null;
 
@@ -147,6 +161,9 @@ export function CreateReservationModal({
     if (!checkIn) return "Falta la fecha de check-in.";
     if (!checkOut) return "Falta la fecha de check-out.";
     if (new Date(checkOut) <= new Date(checkIn)) return "El check-out debe ser posterior al check-in.";
+    if ((customRatePen === "") !== (customRateUsd === "")) {
+      return "Completa el precio personalizado en ambas monedas, o deja las dos vacías.";
+    }
     if (mode === "pasada") {
       if (new Date(checkOut) > new Date())
         return "Una estadía pasada debe tener el check-out en el pasado. Para una reserva futura usa “Reserva nueva”.";
@@ -174,6 +191,8 @@ export function CreateReservationModal({
         guest_id_document: guestIdDocument || undefined,
         guests,
         rate_plan: ratePlan,
+        custom_rate_pen: hasCustomRate ? customRatePen : undefined,
+        custom_rate_usd: hasCustomRate ? customRateUsd : undefined,
         check_in: new Date(checkIn).toISOString(),
         check_out: new Date(checkOut).toISOString(),
       };
@@ -322,6 +341,35 @@ export function CreateReservationModal({
           <label className={LABEL_CLASS}>Tarifa</label>
           <RatePlanToggle value={ratePlan} onChange={setRatePlan} />
         </div>
+
+        <div>
+          <label className={LABEL_CLASS}>Precio/noche S/ (opcional)</label>
+          <input
+            type="number"
+            inputMode="decimal"
+            placeholder={rate ? String(perNightPen ?? "") : "—"}
+            value={customRatePen}
+            onChange={(e) => setCustomRatePen(e.target.value)}
+            className={FIELD_CLASS}
+          />
+        </div>
+        <div>
+          <label className={LABEL_CLASS}>Precio/noche $ (opcional)</label>
+          <input
+            type="number"
+            inputMode="decimal"
+            placeholder={rate ? String(perNightUsd ?? "") : "—"}
+            value={customRateUsd}
+            onChange={(e) => setCustomRateUsd(e.target.value)}
+            className={FIELD_CLASS}
+          />
+        </div>
+        {hasCustomRate && (
+          <p className="text-[11px] text-parchment-dim sm:col-span-2">
+            Reemplaza la tarifa {ratePlanLabel[ratePlan]} solo para esta reserva — las demás reservas de este tipo de
+            cuarto siguen cobrando lo de siempre.
+          </p>
+        )}
 
         <div>
           <label className={LABEL_CLASS}>Check-in</label>
