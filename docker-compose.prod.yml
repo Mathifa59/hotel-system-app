@@ -34,6 +34,13 @@ services:
     build:
       context: ../apu-garden-lodge-web
       target: runner
+    # RESEND_API_KEY / COMPLAINTS_EMAIL_TO: usados por el Libro de
+    # Reclamaciones (app/api/libro-de-reclamaciones/route.ts en el repo del
+    # sitio público) para enviar el reclamo por email — es un secreto de
+    # runtime, no de build, así que va por env_file y NO por un ENV fijo en
+    # el Dockerfile de ese repo (eso quedaría horneado en la imagen). Debe
+    # existir en el .env de ESTE repo (Gestión), en el servidor.
+    env_file: .env
 
   # nginx (dev) usa un config distinto en producción: agrega el server block
   # del sitio público y quita el bind-mount de código fuente. Cloudflare ya
