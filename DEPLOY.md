@@ -1,92 +1,36 @@
 # Despliegue a producción
 
-## ⚠️ Pendiente de despliegue (desde 2026-09-09)
+## Libro de Reclamaciones (Resend) y redirect www — resuelto 2026-09-10
 
-Hay código en `main` de **ambos** repos que todavía no está en el
-servidor — se pusheó, pero el despliegue quedó bloqueado a mitad de
-camino. Esto es lo que falta y por qué:
+El despliegue que había quedado a medias el 2026-09-09 (ver commits
+`agrego terminos, privacidad y libro de reclamaciones...` y
+`corrijo horario de check-in...` en `apu-garden-lodge-web`) ya está
+completo: ambos repos al día en el servidor, `RESEND_API_KEY` y
+`COMPLAINTS_EMAIL_TO=sgutierrezvilla@gmail.com` cargadas en el `.env` de
+producción, y nginx reiniciado para el redirect `www`.
 
-**Qué incluye este despliegue pendiente** (ver detalle completo en
-`CAMBIOS.md` del repo `apu-garden-lodge-web`): idioma español por
-defecto, footer con crédito a DevHorses, páginas de Términos y
-Privacidad, Libro de Reclamaciones Virtual (envía emails con Resend),
-404 con marca propia, y el redirect `www` → sin `www` de este archivo
-(`nginx/nginx.prod.conf`).
+**El acceso SSH que estaba roto (`~/.ssh/apu_garden_lodge_hetzner`
+rechazada) ya no es el problema** — el `authorized_keys` del servidor
+tiene una llave distinta y vigente (`ssh apu-garden-lodge` funciona sin
+tocar nada).
 
-**Por qué quedó a medias — la llave SSH que tenía Claude Code configurada
-en este equipo (`~/.ssh/apu_garden_lodge_hetzner`) fue rechazada por el
-servidor:**
+**Verificado en vivo:**
+- `curl -I http://www.apu-garden-lodge.com` → `301` a
+  `https://apu-garden-lodge.com/`.
+- `/terminos`, `/privacidad`, `/libro-de-reclamaciones` → `200`.
+- Envío real de prueba al Libro de Reclamaciones (código
+  `RC-20260910-YPNO`) → sin errores en los logs del contenedor `web`,
+  correo de negocio le llegó a `sgutierrezvilla@gmail.com`.
 
-```
-deploy@188.34.202.143: Permission denied (publickey)
-```
-
-El servidor ya no reconoce esta clave pública para el usuario `deploy`:
-
-```
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDIej5frayr41QBgVtDqNHkCOVoz8VavvwV7Q5jrF1Ma apu-garden-lodge-hetzner
-```
-
-Se intentó terminar el despliegue a mano por la **consola web de
-Hetzner** (ícono `>_` junto a "Actions" en el panel del servidor, entra
-como `root` sin necesitar la llave SSH) pero se cortó ahí — quedó
-pendiente confirmar en qué paso.
-
-### Para retomarlo en la próxima sesión
-
-1. **Arreglar el acceso SSH** (recomendado, para que Claude pueda
-   desplegar solo la próxima vez): entrar por la consola web de Hetzner
-   como `root` y revisar/agregar la llave de arriba:
-   ```bash
-   su - deploy
-   cat ~/.ssh/authorized_keys        # ver qué hay ahí ahora
-   echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDIej5frayr41QBgVtDqNHkCOVoz8VavvwV7Q5jrF1Ma apu-garden-lodge-hetzner" >> ~/.ssh/authorized_keys
-   ```
-   Después probar desde la máquina local: `ssh apu-garden-lodge`.
-
-2. **Ojo con la ruta** — los repos viven en el `$HOME` del usuario
-   `deploy` (`/home/deploy/apu-gestion-system` y
-   `/home/deploy/apu-garden-lodge-web`), **no** en `/root/`. Si entraste
-   como `root` por la consola web, `cd apu-gestion-system` falla ahí
-   ("No such file or directory") — hace falta `su - deploy` primero, o
-   `cd /home/deploy/apu-gestion-system` directo.
-
-3. **Agregar las variables del Libro de Reclamaciones al `.env` real del
-   servidor** (`/home/deploy/apu-gestion-system/.env` — el de producción,
-   distinto del `.env` local de este equipo):
-   ```
-   RESEND_API_KEY=...
-   COMPLAINTS_EMAIL_TO=...
-   ```
-   El valor real de `RESEND_API_KEY` **no está en ningún archivo
-   versionado** a propósito (es un secreto) — está guardado en el `.env`
-   local de este equipo y en `.env.local` del repo web, cópialo de ahí.
-   Sin esto el Libro de Reclamaciones queda publicado pero no puede
-   enviar los reclamos por email (devuelve error 500 al enviarse).
-
-4. **Desplegar:**
-   ```bash
-   cd ~/apu-gestion-system && ./deploy.sh
-   ```
-
-5. **Recargar nginx a mano** — el redirect de `www` vive en un archivo
-   con bind-mount (`nginx/nginx.prod.conf`); `deploy.sh` no lo recarga
-   solo porque nginx no reconstruye por un cambio de contenido de un
-   archivo montado, solo por cambios de imagen/config declarada:
-   ```bash
-   docker compose -f docker-compose.yml -f docker-compose.prod.yml restart nginx
-   ```
-
-6. **Verificar:**
-   ```bash
-   curl -I http://www.apu-garden-lodge.com          # debe dar 301 -> sin www
-   curl -I https://apu-garden-lodge.com/terminos
-   curl -I https://apu-garden-lodge.com/privacidad
-   curl -I https://apu-garden-lodge.com/libro-de-reclamaciones
-   ```
-   Y probar el formulario del Libro de Reclamaciones en el navegador una
-   vez desplegado, para confirmar que el email sí sale desde el servidor
-   (las pruebas anteriores fueron solo en local).
+**Pendiente real, no bloqueante:** el remitente sigue siendo el sandbox
+de Resend (`onboarding@resend.dev`) — el dueño no había verificado un
+dominio propio en Resend al momento de este despliegue. Sigue
+funcionando bien para el correo al hotel; la copia de cortesía al
+consumidor que reclama puede no llegarle si su email no coincide con la
+cuenta de Resend. Para levantar esa limitación: verificar un dominio
+(ej. `mail.apu-garden-lodge.com`) en el dashboard de Resend y actualizar
+`FROM_EMAIL` en `app/api/libro-de-reclamaciones/route.ts` (repo
+`apu-garden-lodge-web`).
 
 ## Cómo está desplegado hoy (referencia real)
 
