@@ -13,6 +13,14 @@ class Settings(BaseSettings):
     admin_email: str
     admin_password: str
 
+    # Mismas variables que ya usa el sitio público (repo apu-garden-lodge-web)
+    # para el Libro de Reclamaciones — acá se reusan para avisar por correo
+    # cuando llega una solicitud de disponibilidad desde la web, además de la
+    # notificación interna que ya existía (ver app/services/email.py).
+    # Opcionales: sin ellas el envío simplemente se salta, no rompe nada.
+    resend_api_key: str | None = None
+    complaints_email_to: str | None = None
+
     class Config:
         env_file = ".env"
         case_sensitive = False

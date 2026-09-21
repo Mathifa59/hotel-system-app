@@ -11,6 +11,7 @@ from app.schemas.public import AvailabilityOut, BookingRequestCreate, BookingReq
 from app.services.activity_log import log_activity
 from app.services.availability import find_available_room
 from app.services.capacity import ROOM_CAPACITY
+from app.services.email import send_booking_request_notification
 from app.services.events import publish_event
 from app.services.labels import ROOM_TYPE_LABEL
 from app.services.notifications import create_notification
@@ -115,6 +116,21 @@ def create_booking_request(
         audiences=["reception", "admin"],
         payload={"id": str(reservation.id), "room": room.number if room else None, "guest": data.guest_name},
     )
+
+    # Además de la notificación in-app: si nadie tiene el sistema abierto en
+    # ese momento, esto es lo único que avisa que llegó una solicitud nueva.
+    send_booking_request_notification(
+        guest_name=data.guest_name,
+        guest_email=data.guest_email,
+        guest_phone=data.guest_phone,
+        room_type_label=ROOM_TYPE_LABEL[data.room_type],
+        room_number=room.number if room else None,
+        check_in=data.check_in,
+        check_out=data.check_out,
+        guests=data.guests,
+        notes=data.notes,
+    )
+
     return BookingRequestOut(
         id=reservation.id,
         guest_name=reservation.guest_name,
