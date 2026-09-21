@@ -53,6 +53,11 @@ def _send(to: str, subject: str, html: str, reply_to: str | None = None) -> None
         headers={
             "Authorization": f"Bearer {settings.resend_api_key}",
             "Content-Type": "application/json",
+            # Sin esto, Cloudflare (delante de api.resend.com) devuelve un
+            # 403 "error code: 1010" — bloquea el User-Agent por defecto de
+            # urllib ("Python-urllib/3.x") por parecer tráfico de bot.
+            # Encontrado reproduciendo el error real en producción.
+            "User-Agent": "apu-gestion-system/1.0",
         },
         method="POST",
     )
