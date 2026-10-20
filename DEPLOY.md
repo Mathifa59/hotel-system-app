@@ -1,5 +1,27 @@
 # Despliegue a producción
 
+## ⚠️ El despliegue automático (GitHub Actions) está roto — desde 2026-07-31
+
+El workflow `.github/workflows/deploy.yml` de **ambos repos** falla en el
+paso "Desplegar por SSH" en ~5 segundos (no llega a construir nada: es
+conexión/autenticación, probablemente la llave guardada en el secreto
+`VPS_SSH_KEY` ya no coincide con el `authorized_keys` del servidor desde que
+se rehizo el acceso SSH). Último éxito: 2026-07-31. **Hacer `git push` NO
+despliega** — hay que correr `deploy.sh` a mano en el servidor
+(`cd ~/apu-gestion-system && ./deploy.sh`, usuario `deploy`, por SSH o por la
+consola web de Hetzner con `su - deploy`).
+
+Para arreglarlo (en el servidor, como `deploy`):
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/gh_actions -N "" -C github-actions
+cat ~/.ssh/gh_actions.pub >> ~/.ssh/authorized_keys
+cat ~/.ssh/gh_actions        # copiar TODO el contenido, incluidas las líneas BEGIN/END
+```
+y pegarlo en GitHub → cada repo → Settings → Secrets and variables →
+Actions → `VPS_SSH_KEY` (revisar también `VPS_HOST` = `188.34.202.143` y
+`VPS_USER` = `deploy`). Confirmar con "Run workflow" en la pestaña Actions.
+El error exacto está en el log del run fallido (la API pública no lo expone).
+
 ## Libro de Reclamaciones (Resend) y redirect www — resuelto 2026-09-10
 
 El despliegue que había quedado a medias el 2026-09-09 (ver commits
